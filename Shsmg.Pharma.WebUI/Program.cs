@@ -4,6 +4,7 @@ using Shsmg.Pharma.Application;
 using Shsmg.Pharma.WebUI.Components;
 using Shsmg.Pharma.Infra;
 using Shsmg.Pharma.Infra.Auth;
+using Shsmg.Pharma.Application.Common;
 using System.Globalization;
 using Microsoft.AspNetCore.Localization;
 
@@ -30,11 +31,23 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Cookie.Name = "ShsmgPharmaAuth";
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // Company permissions
+    options.AddPolicy("Company.View", policy => policy.RequireClaim("Permission", Permissions.CompanyView));
+    options.AddPolicy("Company.Edit", policy => policy.RequireClaim("Permission", Permissions.CompanyEdit));
 
-// Add services to the container.
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    // Invoice permissions
+    options.AddPolicy("Invoice.View", policy => policy.RequireClaim("Permission", Permissions.InvoiceView));
+    options.AddPolicy("Invoice.Create", policy => policy.RequireClaim("Permission", Permissions.InvoiceCreate));
+    options.AddPolicy("Invoice.Edit", policy => policy.RequireClaim("Permission", Permissions.InvoiceEdit));
+    options.AddPolicy("Invoice.Delete", policy => policy.RequireClaim("Permission", Permissions.InvoiceDelete));
+
+    // User management
+    options.AddPolicy("User.Manage", policy => policy.RequireClaim("Permission", Permissions.UserManage));
+});
+
+builder.Services.AddScoped<Shsmg.Pharma.WebUI.Services.PermissionService>();
 
 var app = builder.Build();
 
@@ -70,6 +83,24 @@ static async Task SeedDefaultUserAsync(IServiceProvider serviceProvider)
 {
     using var scope = serviceProvider.CreateScope();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+
+    // Seed roles
+    foreach (var roleName in Roles.RolePermissions.Keys)
+    {
+        if (!await roleManager.RoleExistsAsync(roleName))
+        {
+            var role = new IdentityRole(roleName);
+            await roleManager.CreateAsync(role);
+
+            // Add claims for permissions
+            var permissions = Roles.RolePermissions[roleName];
+            foreach (var permission in permissions)
+            {
+                await roleManager.AddClaimAsync(role, new System.Security.Claims.Claim("Permission", permission));
+            }
+        }
+    }
 
     const string defaultEmail = "admin@pharma.local";
     const string defaultPassword = "Admin@1234";
@@ -84,5 +115,6 @@ static async Task SeedDefaultUserAsync(IServiceProvider serviceProvider)
         };
 
         await userManager.CreateAsync(user, defaultPassword);
+        await userManager.AddToRoleAsync(user, Roles.Admin);
     }
 }

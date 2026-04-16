@@ -26,6 +26,7 @@ public static class DependencyInjection
                 .AddSignInManager();
 
         services.AddScoped<IIdentityService, IdentityService>();
+        services.AddScoped<IUserService, UserService>();
 
         return services;
     }

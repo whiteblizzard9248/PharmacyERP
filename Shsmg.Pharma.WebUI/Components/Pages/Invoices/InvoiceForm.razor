@@ -1,5 +1,6 @@
 @page "/invoices/new"
 @page "/invoices/edit/{InvoiceId:guid}"
+@attribute [Authorize(Policy = "Invoice.View")]
 @using Shsmg.Pharma.Application.Common
 
 

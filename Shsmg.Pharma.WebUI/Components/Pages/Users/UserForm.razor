@@ -1,0 +1,128 @@
+@page "/users/new"
+@page "/users/edit/{UserId}"
+@attribute [Authorize(Policy = "User.Manage")]
+
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+
+<PageTitle>@(IsEdit ? "Edit User" : "New User")</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0">@(IsEdit ? "Edit User" : "New User")</h2>
+            <p class="text-muted mb-0">@(IsEdit ? "Update user details and roles." : "Create a new user account.")</p>
+        </div>
+        <button class="btn btn-secondary" @onclick="BackToUsers">Back</button>
+    </div>
+
+    <EditForm Model="UserModel" OnValidSubmit="SaveAsync">
+        @if (ValidationErrors.Any())
+        {
+            <div class="alert alert-danger">
+                <ul class="mb-0">
+                    @foreach (var error in ValidationErrors)
+                    {
+                        <li>@error</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-6">
+                <label class="form-label">Email</label>
+                <InputText class="form-control" @bind-Value="UserModel.Email" disabled="@IsEdit" />
+            </div>
+            @if (!IsEdit)
+            {
+                <div class="col-md-6">
+                    <label class="form-label">Password</label>
+                    <InputText type="password" class="form-control" @bind-Value="UserModel.Password" />
+                </div>
+            }
+            <div class="col-12">
+                <label class="form-label">Roles</label>
+                <div class="row">
+                    @foreach (var role in AvailableRoles)
+                    {
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <InputCheckbox class="form-check-input" id="@role"
+                                               @bind-Value="UserModel.SelectedRoles[role]" />
+                                <label class="form-check-label" for="@role">@role</label>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-secondary" @onclick="BackToUsers">Cancel</button>
+            <button type="submit" class="btn btn-primary">@(IsEdit ? "Update User" : "Create User")</button>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    [Parameter] public string? UserId { get; set; }
+
+    private UserFormModel UserModel = new();
+    private bool IsEdit => !string.IsNullOrEmpty(UserId);
+    private List<string> ValidationErrors = new();
+    private readonly string[] AvailableRoles = [Shsmg.Pharma.Application.Common.Roles.Admin,
+Shsmg.Pharma.Application.Common.Roles.Manager, Shsmg.Pharma.Application.Common.Roles.Employee];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (IsEdit && !string.IsNullOrEmpty(UserId))
+        {
+            var user = await Mediator.Send(new GetUserByIdQuery(UserId));
+            if (user != null)
+            {
+                UserModel = new UserFormModel
+                {
+                    Email = user.Email,
+                    SelectedRoles = AvailableRoles.ToDictionary(r => r, r => user.Roles.Contains(r))
+                };
+            }
+        }
+        else
+        {
+            UserModel.SelectedRoles = AvailableRoles.ToDictionary(r => r, r => false);
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        ValidationErrors.Clear();
+
+        try
+        {
+            var selectedRoles = UserModel.SelectedRoles.Where(kv => kv.Value).Select(kv => kv.Key).ToList();
+            if (IsEdit)
+            {
+                await Mediator.Send(new UpdateUserCommand(UserId!, UserModel.Email, selectedRoles));
+            }
+            else
+            {
+                await Mediator.Send(new CreateUserCommand(UserModel.Email, UserModel.Password, selectedRoles));
+            }
+            Navigation.NavigateTo("/users");
+        }
+        catch (Exception exception)
+        {
+            ValidationErrors.Add(exception.Message);
+        }
+    }
+
+    private void BackToUsers() => Navigation.NavigateTo("/users");
+
+    public class UserFormModel
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public Dictionary<string, bool> SelectedRoles { get; set; } = new();
+    }
+}
