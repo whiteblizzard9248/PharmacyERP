@@ -1,0 +1,17 @@
+@page "/logout"
+@using MediatR
+@using Shsmg.Pharma.Application.Features.Auth
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+
+<h3>Signing out</h3>
+
+<p>Please wait while we log you out...</p>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await Mediator.Send(new LogoutCommand());
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+}

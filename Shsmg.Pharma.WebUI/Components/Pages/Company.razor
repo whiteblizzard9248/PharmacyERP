@@ -1,0 +1,102 @@
+@page "/company"
+
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+
+<PageTitle>Store Profile</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">Store Profile</h2>
+            <p class="text-muted mb-0">Maintain the medical store profile used for invoice billing and receipt generation.</p>
+        </div>
+        <button class="btn btn-outline-secondary" @onclick="BackToHome">Home</button>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
+    }
+    else
+    {
+        <EditForm Model="StoreProfile" OnValidSubmit="SaveAsync">
+            @if (ValidationErrors.Any())
+            {
+                <div class="alert alert-danger">
+                    <ul class="mb-0">
+                        @foreach (var error in ValidationErrors)
+                        {
+                            <li>@error</li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <label class="form-label">Store name</label>
+                    <InputText class="form-control" @bind-Value="StoreProfile.Name" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Contact number</label>
+                    <InputText class="form-control" @bind-Value="StoreProfile.ContactNumber" />
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Address</label>
+                    <InputTextArea class="form-control" rows="4" @bind-Value="StoreProfile.Address" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">License number</label>
+                    <InputText class="form-control" @bind-Value="StoreProfile.LicenseNumber" />
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-secondary" @onclick="BackToHome">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save profile</button>
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    private CompanyDto StoreProfile = new CompanyDto();
+    private bool IsLoading = true;
+    private List<string> ValidationErrors = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var profile = await Mediator.Send(new GetCompanyQuery());
+        StoreProfile = profile ?? new CompanyDto();
+        IsLoading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        ValidationErrors.Clear();
+
+        try
+        {
+            await Mediator.Send(new CreateCompanyCommand(StoreProfile));
+            Navigation.NavigateTo("/company", true);
+        }
+        catch (FluentValidation.ValidationException validationException)
+        {
+            ValidationErrors = validationException.Errors
+                .Select(error => string.IsNullOrWhiteSpace(error.PropertyName)
+                    ? error.ErrorMessage
+                    : $"{error.PropertyName}: {error.ErrorMessage}")
+                .Distinct()
+                .ToList();
+        }
+        catch (Exception exception)
+        {
+            ValidationErrors.Add(exception.Message);
+        }
+    }
+
+    private void BackToHome() => Navigation.NavigateTo("/");
+}

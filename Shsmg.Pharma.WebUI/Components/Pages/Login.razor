@@ -1,0 +1,48 @@
+@page "/login"
+@using MediatR
+@using Shsmg.Pharma.Application.DTOs
+@using Shsmg.Pharma.Application.Features.Auth
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+
+<h3>Login</h3>
+
+@if (!string.IsNullOrEmpty(ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        @ErrorMessage
+    </div>
+}
+
+<EditForm Model="LoginModel" OnValidSubmit="HandleValidSubmit">
+    <div class="mb-3">
+        <label class="form-label" for="email">Email</label>
+        <InputText id="email" class="form-control" @bind-Value="LoginModel.Email" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="password">Password</label>
+        <InputText id="password" type="password" class="form-control" @bind-Value="LoginModel.Password" />
+    </div>
+    <div class="form-check mb-3">
+        <InputCheckbox id="rememberMe" class="form-check-input" @bind-Value="LoginModel.RememberMe" />
+        <label class="form-check-label" for="rememberMe">Remember me</label>
+    </div>
+    <button type="submit" class="btn btn-primary">Sign in</button>
+</EditForm>
+
+@code {
+    private LoginDto LoginModel { get; } = new();
+    private string? ErrorMessage;
+
+    private async Task HandleValidSubmit()
+    {
+        var result = await Mediator.Send(new LoginCommand(LoginModel));
+        if (result.Succeeded)
+        {
+            Navigation.NavigateTo("/invoices");
+            return;
+        }
+
+        ErrorMessage = result.ErrorMessage ?? "Login failed. Please check your credentials.";
+    }
+}

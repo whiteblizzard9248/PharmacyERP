@@ -1,0 +1,75 @@
+@page "/invoices"
+
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+
+<PageTitle>Invoices</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0">Invoices</h2>
+            <p class="text-muted mb-0">Manage your billing history and open invoices for the medical store.</p>
+        </div>
+        <button class="btn btn-primary" @onclick="CreateInvoice">New Invoice</button>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
+    }
+    else if (InvoiceSummaries?.Any() != true)
+    {
+        <div class="alert alert-info">No invoices found. Start by creating a new invoice.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Invoice #</th>
+                        <th>Date</th>
+                        <th>Patient</th>
+                        <th>Total</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var invoice in InvoiceSummaries)
+                    {
+                        <tr>
+                            <td>@invoice.InvoiceNumber</td>
+                            <td>@invoice.Date.ToString("dd MMM yyyy")</td>
+                            <td>@invoice.PatientName</td>
+                            <td>@invoice.NetTotal:C</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary me-2"
+                                        @onclick="() => ViewInvoice(invoice.Id)">View</button>
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        @onclick="() => EditInvoice(invoice.Id)">Edit</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private IEnumerable<InvoiceSummaryDto>? InvoiceSummaries;
+    private bool IsLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        InvoiceSummaries = await Mediator.Send(new GetInvoiceSummariesQuery());
+        IsLoading = false;
+    }
+
+    private void CreateInvoice() => Navigation.NavigateTo("/invoices/new");
+    private void ViewInvoice(Guid id) => Navigation.NavigateTo($"/invoices/{id}");
+    private void EditInvoice(Guid id) => Navigation.NavigateTo($"/invoices/edit/{id}");
+}

@@ -1,0 +1,121 @@
+@page "/invoices/{InvoiceId:guid}"
+
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+
+<PageTitle>Invoice Details</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h2 class="mb-1">Invoice Details</h2>
+            <p class="text-muted mb-0">Review and update invoice details for your medical billing workflow.</p>
+        </div>
+        <button class="btn btn-outline-secondary" @onclick="BackToList">Back to invoices</button>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
+    }
+    else if (Invoice is null)
+    {
+        <div class="alert alert-warning">Invoice not found.</div>
+    }
+    else
+    {
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <p class="text-uppercase text-muted mb-1">Invoice</p>
+                        <h5 class="mb-0">@Invoice.InvoiceNumber</h5>
+                    </div>
+                    <div class="col-md-4">
+                        <p class="text-uppercase text-muted mb-1">Patient</p>
+                        <p class="mb-0">@Invoice.PatientName</p>
+                    </div>
+                    <div class="col-md-4">
+                        <p class="text-uppercase text-muted mb-1">Date</p>
+                        <p class="mb-0">@Invoice.Date.ToString("dd MMM yyyy")</p>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <p class="text-uppercase text-muted mb-1">Doctor</p>
+                        <p class="mb-0">@Invoice.DoctorName</p>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <button class="btn btn-sm btn-primary" @onclick="EditInvoice">Edit invoice</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive mb-4">
+            <table class="table table-borderless align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Description</th>
+                        <th>Package</th>
+                        <th>Batch</th>
+                        <th>Expiry</th>
+                        <th>Qty</th>
+                        <th>Rate</th>
+                        <th>GST</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Invoice.Items)
+                    {
+                        <tr>
+                            <td>@item.Description</td>
+                            <td>@item.Package</td>
+                            <td>@item.Batch</td>
+                            <td>@item.ExpiryDate</td>
+                            <td>@item.Quantity</td>
+                            <td>@item.Rate:C</td>
+                            <td>@item.GstPercentage %</td>
+                            <td>@(item.TotalWithoutTax + item.GstAmount).ToString("C")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="row">
+            <div class="col-md-4 offset-md-8">
+                <dl class="row">
+                    <dt class="col-6">Subtotal</dt>
+                    <dd class="col-6 text-end">@Invoice.GrossTotal:C</dd>
+
+                    <dt class="col-6">GST total</dt>
+                    <dd class="col-6 text-end">@Invoice.TotalGst:C</dd>
+
+                    <dt class="col-6">Net total</dt>
+                    <dd class="col-6 text-end fw-bold">@Invoice.NetTotal:C</dd>
+                </dl>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid InvoiceId { get; set; }
+
+    private CreateInvoiceDto? Invoice;
+    private bool IsLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Invoice = await Mediator.Send(new GetInvoiceByIdQuery(InvoiceId));
+        IsLoading = false;
+    }
+
+    private void BackToList() => Navigation.NavigateTo("/invoices");
+    private void EditInvoice() => Navigation.NavigateTo($"/invoices/edit/{InvoiceId}");
+}
