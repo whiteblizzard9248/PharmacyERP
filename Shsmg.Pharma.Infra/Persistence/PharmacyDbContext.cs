@@ -24,6 +24,10 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options) : Id
             entity.Property(e => e.LicenseNumber).IsRequired().HasMaxLength(50);
             entity.Property(e => e.ContactNumber).IsRequired().HasMaxLength(20);
             entity.Property(e => e.Address).HasColumnType("text");
+            entity.Property(e => e.InvoiceHeaderText).HasColumnType("text");
+            entity.Property(e => e.InvoiceFooterText).HasColumnType("text");
+            entity.Property(e => e.PrintShowGst).HasDefaultValue(true);
+            entity.Property(e => e.PrintShowExpiry).HasDefaultValue(true);
 
             entity.HasIndex(e => e.Name);
             entity.HasIndex(e => e.ContactNumber);

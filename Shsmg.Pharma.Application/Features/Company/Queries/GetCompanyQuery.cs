@@ -30,7 +30,11 @@ public sealed class GetCompanyQueryHandler : IRequestHandler<GetCompanyQuery, Co
                 Name = company.Name,
                 Address = company.Address ?? string.Empty,
                 LicenseNumber = company.LicenseNumber,
-                ContactNumber = company.ContactNumber
+                ContactNumber = company.ContactNumber,
+                InvoiceHeaderText = company.InvoiceHeaderText ?? string.Empty,
+                InvoiceFooterText = company.InvoiceFooterText ?? string.Empty,
+                PrintShowGst = company.PrintShowGst,
+                PrintShowExpiry = company.PrintShowExpiry
             };
     }
 }

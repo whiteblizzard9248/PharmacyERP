@@ -1,0 +1,184 @@
+@page "/invoices/print/{InvoiceId:guid}"
+@attribute [Authorize(Policy = "Invoice.View")]
+
+@using Microsoft.JSInterop
+@inject IJSRuntime JSRuntime
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+
+<PageTitle>Print Invoice</PageTitle>
+
+<div class="container py-4">
+    @if (IsLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
+    }
+    else if (Invoice is null)
+    {
+        <div class="alert alert-warning">Invoice not found.</div>
+    }
+    else
+    {
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="mb-1">Invoice Print Preview</h2>
+                <p class="text-muted mb-0">Use the button below to print the invoice in the configured format.</p>
+            </div>
+            <div>
+                <button class="btn btn-outline-secondary me-2" @onclick="BackToDetails">Back</button>
+                <button class="btn btn-primary" @onclick="PrintPage">Print</button>
+            </div>
+        </div>
+
+        <div class="invoice-print p-4 bg-white border rounded shadow-sm">
+            <div class="mb-4 text-center">
+                <h3>@Company.Name</h3>
+                <p class="mb-1">@Company.Address</p>
+                <p class="mb-1">DL No.: @Company.LicenseNumber</p>
+                <p class="mb-0">Contact: @Company.ContactNumber</p>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(Company.InvoiceHeaderText))
+            {
+                <div class="alert alert-light border mb-4">
+                    @((MarkupString)Company.InvoiceHeaderText.Replace("\n", "<br/>"))
+                </div>
+            }
+
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <strong>Invoice</strong>
+                    <div>@Invoice.InvoiceNumber</div>
+                </div>
+                <div class="col-md-4">
+                    <strong>Patient</strong>
+                    <div>@Invoice.PatientName</div>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <strong>Date</strong>
+                    <div>@Invoice.Date.ToString("dd MMM yyyy")</div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <strong>Doctor</strong>
+                    <div>@Invoice.DoctorName</div>
+                </div>
+            </div>
+
+            <div class="table-responsive mb-4">
+                <table class="table table-bordered table-sm align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Description</th>
+                            <th>Qty</th>
+                            <th>Rate</th>
+                            @if (Company.PrintShowExpiry)
+                            {
+                                <th>Expiry</th>
+                            }
+                            @if (Company.PrintShowGst)
+                            {
+                                <th>GST</th>
+                            }
+                            <th class="text-end">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Invoice.Items)
+                        {
+                            <tr>
+                                <td>@item.Description</td>
+                                <td>@item.Quantity</td>
+                                <td>@item.Rate:C</td>
+                                @if (Company.PrintShowExpiry)
+                                {
+                                    <td>@item.ExpiryDate</td>
+                                }
+                                @if (Company.PrintShowGst)
+                                {
+                                    <td>@item.GstPercentage %</td>
+                                }
+                                <td class="text-end">@((item.TotalWithoutTax + item.GstAmount).ToString("C"))</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="row justify-content-end">
+                <div class="col-md-4">
+                    <dl class="row">
+                        <dt class="col-6">Subtotal</dt>
+                        <dd class="col-6 text-end">@Invoice.GrossTotal:C</dd>
+                        @if (Company.PrintShowGst)
+                        {
+                            <dt class="col-6">GST total</dt>
+                            <dd class="col-6 text-end">@Invoice.TotalGst:C</dd>
+                        }
+                        <dt class="col-6">Net total</dt>
+                        <dd class="col-6 text-end fw-bold">@Invoice.NetTotal:C</dd>
+                    </dl>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(Company.InvoiceFooterText))
+            {
+                <div class="mt-4 text-center text-muted small">
+                    @((MarkupString)Company.InvoiceFooterText.Replace("\n", "<br/>"))
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .invoice-print {
+        background: white;
+    }
+
+    @@media print {
+        body {
+            background: #fff;
+        }
+
+        .invoice-print {
+            box-shadow: none !important;
+            border: none !important;
+        }
+
+        .btn,
+        .navbar,
+        .top-row,
+        .page-footer,
+        .nav-scrollable {
+            display: none !important;
+        }
+
+        .container {
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+    }
+</style>
+
+@code {
+    [Parameter] public Guid InvoiceId { get; set; }
+
+    private CreateInvoiceDto? Invoice;
+    private CompanyDto Company = new();
+    private bool IsLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Invoice = await Mediator.Send(new GetInvoiceByIdQuery(InvoiceId));
+        Company = await Mediator.Send(new GetCompanyQuery()) ?? new CompanyDto();
+        IsLoading = false;
+    }
+
+    private void BackToDetails() => Navigation.NavigateTo($"/invoices/{InvoiceId}");
+    private async Task PrintPage() => await JSRuntime.InvokeVoidAsync("window.print");
+}

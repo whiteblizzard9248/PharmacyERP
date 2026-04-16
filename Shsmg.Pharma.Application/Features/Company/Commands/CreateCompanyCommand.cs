@@ -31,6 +31,10 @@ public class CreateCompanyHandler : IRequestHandler<CreateCompanyCommand, Guid>
             existingCompany.Address = dto.Address;
             existingCompany.LicenseNumber = dto.LicenseNumber;
             existingCompany.ContactNumber = dto.ContactNumber;
+            existingCompany.InvoiceHeaderText = dto.InvoiceHeaderText;
+            existingCompany.InvoiceFooterText = dto.InvoiceFooterText;
+            existingCompany.PrintShowGst = dto.PrintShowGst;
+            existingCompany.PrintShowExpiry = dto.PrintShowExpiry;
             existingCompany.LastModified = DateTime.UtcNow;
 
             await _context.SaveChangesAsync(cancellationToken);
@@ -43,7 +47,11 @@ public class CreateCompanyHandler : IRequestHandler<CreateCompanyCommand, Guid>
             Name = dto.Name,
             Address = dto.Address,
             LicenseNumber = dto.LicenseNumber,
-            ContactNumber = dto.ContactNumber
+            ContactNumber = dto.ContactNumber,
+            InvoiceHeaderText = dto.InvoiceHeaderText,
+            InvoiceFooterText = dto.InvoiceFooterText,
+            PrintShowGst = dto.PrintShowGst,
+            PrintShowExpiry = dto.PrintShowExpiry
         };
 
         _context.Companies.Add(newCompany);
