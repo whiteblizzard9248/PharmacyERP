@@ -2,6 +2,7 @@
 @using MediatR
 @using Shsmg.Pharma.Application.DTOs
 @using Shsmg.Pharma.Application.Features.Auth
+@using System.ComponentModel.DataAnnotations
 @inject IMediator Mediator
 @inject NavigationManager Navigation
 
@@ -14,35 +15,120 @@
     </div>
 }
 
-<EditForm Model="LoginModel" OnValidSubmit="HandleValidSubmit">
-    <div class="mb-3">
-        <label class="form-label" for="email">Email</label>
-        <InputText id="email" class="form-control" @bind-Value="LoginModel.Email" />
+<form method="post" @formname="loginForm">
+    <AntiforgeryToken />
+    <div class="container min-vh-100 d-flex align-items-center justify-content-center">
+        <div class="col-12 col-sm-10 col-md-6 col-lg-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+
+                    <h4 class="card-title text-center mb-4">Sign in</h4>
+
+                    <!-- Email -->
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input name="LoginModel.Email"
+                               class="form-control @(Errors.ContainsKey("Email") ? "is-invalid" : "")"
+                               value="@LoginModel?.Email" />
+
+                        @if (Errors.ContainsKey("Email"))
+                        {
+                            <div class="invalid-feedback d-block">
+                                @foreach (var err in Errors["Email"])
+                                {
+                                    <div>@err</div>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Password -->
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input name="LoginModel.Password" type="password"
+                               class="form-control @(Errors.ContainsKey("Password") ? "is-invalid" : "")" />
+
+                        @if (Errors.ContainsKey("Password"))
+                        {
+                            <div class="invalid-feedback d-block">
+                                @foreach (var err in Errors["Password"])
+                                {
+                                    <div>@err</div>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Remember me -->
+                    <div class="form-check mb-3">
+                        <input id="rememberMe" name="LoginModel.RememberMe" type="checkbox" class="form-check-input" />
+                        <label class="form-check-label" for="rememberMe">
+                            Remember me
+                        </label>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            Sign in
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
     </div>
-    <div class="mb-3">
-        <label class="form-label" for="password">Password</label>
-        <InputText id="password" type="password" class="form-control" @bind-Value="LoginModel.Password" />
-    </div>
-    <div class="form-check mb-3">
-        <InputCheckbox id="rememberMe" class="form-check-input" @bind-Value="LoginModel.RememberMe" />
-        <label class="form-check-label" for="rememberMe">Remember me</label>
-    </div>
-    <button type="submit" class="btn btn-primary">Sign in</button>
-</EditForm>
+</form>
 
 @code {
-    private LoginDto LoginModel { get; } = new();
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    [SupplyParameterFromForm]
+    public LoginDto? LoginModel { get; set; }
+
+    private Dictionary<string, List<string>> Errors = new();
     private string? ErrorMessage;
 
-    private async Task HandleValidSubmit()
+    protected override async Task OnParametersSetAsync()
     {
-        var result = await Mediator.Send(new LoginCommand(LoginModel));
-        if (result.Succeeded)
+        if (HttpContext?.Request.Method != "POST")
+            return;
+
+        if (LoginModel is null)
         {
-            Navigation.NavigateTo("/invoices");
+            ErrorMessage = "Invalid form submission.";
             return;
         }
 
-        ErrorMessage = result.ErrorMessage ?? "Login failed. Please check your credentials.";
+        Errors.Clear();
+
+        var context = new ValidationContext(LoginModel);
+        var results = new List<ValidationResult>();
+
+        if (!Validator.TryValidateObject(LoginModel, context, results, true))
+        {
+            foreach (var validationResult in results)
+            {
+                foreach (var member in validationResult.MemberNames)
+                {
+                    if (!Errors.ContainsKey(member))
+                        Errors[member] = new List<string>();
+
+                    Errors[member].Add(validationResult.ErrorMessage!);
+                }
+            }
+
+            return;
+        }
+
+        var result = await Mediator.Send(new LoginCommand(LoginModel));
+
+        if (result.Succeeded)
+        {
+            Navigation.NavigateTo("/invoices", true);
+            return;
+        }
+
+        ErrorMessage = "Login failed. Please check your credentials.";
     }
 }

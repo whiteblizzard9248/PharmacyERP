@@ -2,16 +2,9 @@ using MediatR;
 
 namespace Shsmg.Pharma.Application.Features.Users.Commands;
 
-public sealed class CreateUserCommand : IRequest<Unit>
+public sealed class CreateUserCommand(string email, string password, List<string> roles) : IRequest<Unit>
 {
-    public CreateUserCommand(string email, string password, List<string> roles)
-    {
-        Email = email;
-        Password = password;
-        Roles = roles;
-    }
-
-    public string Email { get; }
-    public string Password { get; }
-    public List<string> Roles { get; }
+    public string Email { get; } = email;
+    public string Password { get; } = password;
+    public List<string> Roles { get; } = roles;
 }

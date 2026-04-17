@@ -5,6 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Shsmg.Pharma.Infra.Auth;
 using Shsmg.Pharma.Infra.Persistence;
 using Shsmg.Pharma.Application.Common;
+using Shsmg.Pharma.Infra.Services;
+using QuestPDF.Infrastructure;
 
 namespace Shsmg.Pharma.Infra;
 
@@ -27,6 +29,8 @@ public static class DependencyInjection
 
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IPdfGeneratorService, PdfGeneratorService>();
+        QuestPDF.Settings.License = LicenseType.Community;
 
         return services;
     }

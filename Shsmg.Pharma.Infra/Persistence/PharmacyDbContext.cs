@@ -24,10 +24,6 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options) : Id
             entity.Property(e => e.LicenseNumber).IsRequired().HasMaxLength(50);
             entity.Property(e => e.ContactNumber).IsRequired().HasMaxLength(20);
             entity.Property(e => e.Address).HasColumnType("text");
-            entity.Property(e => e.InvoiceHeaderText).HasColumnType("text");
-            entity.Property(e => e.InvoiceFooterText).HasColumnType("text");
-            entity.Property(e => e.PrintShowGst).HasDefaultValue(true);
-            entity.Property(e => e.PrintShowExpiry).HasDefaultValue(true);
 
             entity.HasIndex(e => e.Name);
             entity.HasIndex(e => e.ContactNumber);
@@ -71,12 +67,14 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options) : Id
             entity.HasKey(e => e.Id);
 
             entity.Property(e => e.Description).HasMaxLength(1000);
+            entity.Property(e => e.HsnCode).HasMaxLength(10);
             entity.Property(e => e.Package).HasMaxLength(50);
             entity.Property(e => e.Mfg).HasMaxLength(100);
             entity.Property(e => e.Batch).HasMaxLength(50);
             entity.Property(e => e.ExpiryDate).HasMaxLength(20); // String as requested
 
             entity.HasIndex("InvoiceId");
+            entity.HasIndex(e => e.HsnCode);
             entity.HasIndex(e => e.Batch);
 
             // Financials
@@ -100,9 +98,18 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options) : Id
                     entry.Entity.LastModified = DateTime.UtcNow;
                     break;
                 case EntityState.Deleted:
-                    // Intercept hard delete and turn it into a soft delete
-                    entry.State = EntityState.Modified;
-                    entry.Entity.IsDeleted = true;
+                    // Only intercept if it's not already deleted
+                    if (entry.Entity.IsDeleted)
+                    {
+                        // If already soft-deleted, just leave it alone or detach it
+                        entry.State = EntityState.Unchanged;
+                    }
+                    else
+                    {
+                        entry.State = EntityState.Modified;
+                        entry.Entity.IsDeleted = true;
+                        entry.Entity.LastModified = DateTime.UtcNow;
+                    }
                     break;
             }
         }

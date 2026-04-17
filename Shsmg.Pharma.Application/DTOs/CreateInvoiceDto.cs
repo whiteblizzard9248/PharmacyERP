@@ -11,7 +11,7 @@ public class CreateInvoiceDto
     public List<InvoiceItemDto> Items { get; set; } = [];
 
     // Summary calculations for the footer
-    public decimal GrossTotal => Items.Sum(x => x.TotalWithoutTax);
+    public decimal GrossTotal => Items.Sum(x => x.TotalWithoutTax); // base
     public decimal TotalGst => Items.Sum(x => x.GstAmount);
-    public decimal NetTotal => GrossTotal + TotalGst;
+    public decimal NetTotal => Items.Sum(x => x.LineTotal); // already inclusive
 }

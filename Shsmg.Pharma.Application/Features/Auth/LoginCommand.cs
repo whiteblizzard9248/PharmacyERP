@@ -3,12 +3,7 @@ using Shsmg.Pharma.Application.DTOs;
 
 namespace Shsmg.Pharma.Application.Features.Auth;
 
-public sealed class LoginCommand : IRequest<LoginResultDto>
+public sealed class LoginCommand(LoginDto loginDto) : IRequest<LoginResultDto>
 {
-    public LoginCommand(LoginDto loginDto)
-    {
-        LoginDto = loginDto;
-    }
-
-    public LoginDto LoginDto { get; }
+    public LoginDto LoginDto { get; } = loginDto;
 }

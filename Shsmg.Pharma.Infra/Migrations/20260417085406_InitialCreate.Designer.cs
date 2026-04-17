@@ -12,7 +12,7 @@ using Shsmg.Pharma.Infra.Persistence;
 namespace Shsmg.Pharma.Infra.Migrations
 {
     [DbContext(typeof(PharmacyDbContext))]
-    [Migration("20260416025918_InitialCreate")]
+    [Migration("20260417085406_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />

@@ -7,14 +7,9 @@ namespace Shsmg.Pharma.Application.Features.Company.Queries;
 
 public record GetCompanyQuery : IRequest<CompanyDto?>;
 
-public sealed class GetCompanyQueryHandler : IRequestHandler<GetCompanyQuery, CompanyDto?>
+public sealed class GetCompanyQueryHandler(IPharmacyDbContext context) : IRequestHandler<GetCompanyQuery, CompanyDto?>
 {
-    private readonly IPharmacyDbContext _context;
-
-    public GetCompanyQueryHandler(IPharmacyDbContext context)
-    {
-        _context = context;
-    }
+    private readonly IPharmacyDbContext _context = context;
 
     public async Task<CompanyDto?> Handle(GetCompanyQuery request, CancellationToken cancellationToken)
     {
@@ -30,11 +25,7 @@ public sealed class GetCompanyQueryHandler : IRequestHandler<GetCompanyQuery, Co
                 Name = company.Name,
                 Address = company.Address ?? string.Empty,
                 LicenseNumber = company.LicenseNumber,
-                ContactNumber = company.ContactNumber,
-                InvoiceHeaderText = company.InvoiceHeaderText ?? string.Empty,
-                InvoiceFooterText = company.InvoiceFooterText ?? string.Empty,
-                PrintShowGst = company.PrintShowGst,
-                PrintShowExpiry = company.PrintShowExpiry
+                ContactNumber = company.ContactNumber
             };
     }
 }

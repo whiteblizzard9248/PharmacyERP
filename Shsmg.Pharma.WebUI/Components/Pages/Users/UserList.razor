@@ -1,5 +1,9 @@
 @page "/users"
 @attribute [Authorize(Policy = "User.Manage")]
+@rendermode InteractiveServer
+
+@using Shsmg.Pharma.Application.Common
+@using Shsmg.Pharma.Application.Features.Users.Commands
 
 @inject IMediator Mediator
 @inject NavigationManager Navigation
@@ -46,8 +50,11 @@
                             <td>
                                 <button class="btn btn-sm btn-outline-primary me-2"
                                         @onclick="() => EditUser(user.Id)">Edit</button>
-                                <button class="btn btn-sm btn-outline-danger"
-                                        @onclick="() => DeleteUser(user.Id)">Delete</button>
+                                @if (IsManager)
+                                {
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            @onclick="() => DeleteUser(user.Id)">Delete</button>
+                                }
                             </td>
                         </tr>
                     }
@@ -60,8 +67,15 @@
 @code {
     private IEnumerable<UserDto>? Users;
     private bool IsLoading = true;
+    private bool IsManager;
 
     protected override async Task OnInitializedAsync()
+    {
+        await LoadUsersAsync();
+        IsManager = await PermissionService.IsManagerAsync() || await PermissionService.IsAdminAsync();
+    }
+
+    private async Task LoadUsersAsync()
     {
         Users = await Mediator.Send(new GetUsersQuery());
         IsLoading = false;
@@ -69,5 +83,10 @@
 
     private void CreateUser() => Navigation.NavigateTo("/users/new");
     private void EditUser(string id) => Navigation.NavigateTo($"/users/edit/{id}");
-    private void DeleteUser(string id) => Navigation.NavigateTo($"/users/delete/{id}");
+
+    private async Task DeleteUser(string id)
+    {
+        await Mediator.Send(new DeleteUserCommand(id));
+        await LoadUsersAsync();
+    }
 }

@@ -7,6 +7,8 @@ using Shsmg.Pharma.Infra.Auth;
 using Shsmg.Pharma.Application.Common;
 using System.Globalization;
 using Microsoft.AspNetCore.Localization;
+using Shsmg.Pharma.Infra.Persistence;
+using Microsoft.AspNetCore.Components;
 
 var culture = new CultureInfo("en-IN");
 CultureInfo.DefaultThreadCurrentCulture = culture;
@@ -20,16 +22,28 @@ builder.Services.AddApplication(cfg =>
 {
     cfg.LicenseKey = builder.Configuration["MediatR:LicenseKey"];
 });
-builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-    .AddCookie(options =>
+builder.Services.AddInfrastructure(builder.Configuration);
+
+builder.Services.AddIdentity<AppUser, IdentityRole>()
+    .AddEntityFrameworkStores<PharmacyDbContext>()
+    .AddDefaultTokenProviders();
+
+builder.Services.AddScoped(sp =>
+{
+    var navigation = sp.GetRequiredService<NavigationManager>();
+    return new HttpClient
     {
-        options.LoginPath = "/login";
-        options.LogoutPath = "/logout";
-        options.Cookie.Name = "ShsmgPharmaAuth";
-    });
+        BaseAddress = new Uri(navigation.BaseUri)
+    };
+});
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.LoginPath = "/login";
+    options.LogoutPath = "/logout";
+    options.Cookie.Name = "ShsmgPharmaAuth";
+});
 
 builder.Services.AddAuthorization(options =>
 {
@@ -46,6 +60,9 @@ builder.Services.AddAuthorization(options =>
     // User management
     options.AddPolicy("User.Manage", policy => policy.RequireClaim("Permission", Permissions.UserManage));
 });
+builder.Services.AddAntiforgery();
+builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+
 
 builder.Services.AddScoped<Shsmg.Pharma.WebUI.Services.PermissionService>();
 
@@ -73,6 +90,7 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
@@ -102,19 +120,32 @@ static async Task SeedDefaultUserAsync(IServiceProvider serviceProvider)
         }
     }
 
-    const string defaultEmail = "admin@pharma.local";
-    const string defaultPassword = "Admin@1234";
+    const string adminEmail = "admin@pharma.local";
+    const string adminPassword = "Admin@1234";
 
-    if (await userManager.FindByEmailAsync(defaultEmail) is null)
+    const string managerEmail = "manager.pharma.local";
+    const string managerPassword = "Manager@1234";
+
+    const string employeeEmail = "employee.pharma.local";
+    const string employeePassword = "Employee@1234";
+
+    await CreateDefaultUser(userManager, adminEmail, adminPassword, Roles.Admin);
+    await CreateDefaultUser(userManager, managerEmail, managerPassword, Roles.Manager);
+    await CreateDefaultUser(userManager, employeeEmail, employeePassword, Roles.Employee);
+}
+
+static async Task CreateDefaultUser(UserManager<AppUser> userManager, string userName, string password, string role)
+{
+    if (await userManager.FindByEmailAsync(userName) is null)
     {
         var user = new AppUser
         {
-            UserName = defaultEmail,
-            Email = defaultEmail,
+            UserName = userName,
+            Email = userName,
             EmailConfirmed = true
         };
 
-        await userManager.CreateAsync(user, defaultPassword);
-        await userManager.AddToRoleAsync(user, Roles.Admin);
+        await userManager.CreateAsync(user, password);
+        await userManager.AddToRoleAsync(user, role);
     }
 }

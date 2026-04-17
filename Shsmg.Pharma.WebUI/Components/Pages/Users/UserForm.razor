@@ -2,8 +2,11 @@
 @page "/users/edit/{UserId}"
 @attribute [Authorize(Policy = "User.Manage")]
 
+@using Shsmg.Pharma.Application.Common
 @inject IMediator Mediator
 @inject NavigationManager Navigation
+@inject Shsmg.Pharma.WebUI.Services.PermissionService PermissionService
+@rendermode InteractiveServer
 
 <PageTitle>@(IsEdit ? "Edit User" : "New User")</PageTitle>
 
@@ -48,8 +51,9 @@
                     {
                         <div class="col-md-4">
                             <div class="form-check">
-                                <InputCheckbox class="form-check-input" id="@role"
-                                               @bind-Value="UserModel.SelectedRoles[role]" />
+                                <InputCheckbox class="form-check-input" id="@role" Value="GetRoleValue(role)"
+                                               ValueChanged="@(v => SetRoleValue(role, v))"
+                                               ValueExpression="() => UserModel.SelectedRoles[role]" />
                                 <label class="form-check-label" for="@role">@role</label>
                             </div>
                         </div>
@@ -71,11 +75,14 @@
     private UserFormModel UserModel = new();
     private bool IsEdit => !string.IsNullOrEmpty(UserId);
     private List<string> ValidationErrors = new();
-    private readonly string[] AvailableRoles = [Shsmg.Pharma.Application.Common.Roles.Admin,
-Shsmg.Pharma.Application.Common.Roles.Manager, Shsmg.Pharma.Application.Common.Roles.Employee];
+    private string[] AvailableRoles = new[] { Roles.Admin, Roles.Manager, Roles.Employee };
 
     protected override async Task OnInitializedAsync()
     {
+        if (await PermissionService.IsManagerAsync())
+        {
+            AvailableRoles = new[] { Roles.Employee };
+        }
         if (IsEdit && !string.IsNullOrEmpty(UserId))
         {
             var user = await Mediator.Send(new GetUserByIdQuery(UserId));
@@ -92,6 +99,16 @@ Shsmg.Pharma.Application.Common.Roles.Manager, Shsmg.Pharma.Application.Common.R
         {
             UserModel.SelectedRoles = AvailableRoles.ToDictionary(r => r, r => false);
         }
+    }
+
+    private bool GetRoleValue(string role)
+    {
+        return UserModel.SelectedRoles.TryGetValue(role, out var value) && value;
+    }
+
+    private void SetRoleValue(string role, bool value)
+    {
+        UserModel.SelectedRoles[role] = value;
     }
 
     private async Task SaveAsync()

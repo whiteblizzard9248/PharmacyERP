@@ -15,9 +15,33 @@
 </head>
 
 <body>
-    <Routes @rendermode="InteractiveServer" />
+    @using Microsoft.AspNetCore.Components.Authorization
+<CascadingAuthenticationState>
+        <Router AppAssembly="@typeof(App).Assembly">
+            <Found Context="routeData">
+                <RouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)" />
+                <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+            </Found>
+            <NotFound>
+                <PageTitle>Not found</PageTitle>
+                <LayoutView Layout="@typeof(Layout.MainLayout)">
+                    <p role="alert">Sorry, there's nothing at this address.</p>
+                </LayoutView>
+            </NotFound>
+        </Router>
+    </CascadingAuthenticationState>
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script>
+        window.downloadFileFromBase64 = (fileName, base64String) => {
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = 'data:application/pdf;base64,' + base64String;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        };
+    </script>
 </body>
 
 </html>

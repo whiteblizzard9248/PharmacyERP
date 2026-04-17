@@ -7,14 +7,9 @@ namespace Shsmg.Pharma.Application.Features.Company.Commands;
 
 public record CreateCompanyCommand(CompanyDto CompanyDto) : IRequest<Guid>;
 
-public class CreateCompanyHandler : IRequestHandler<CreateCompanyCommand, Guid>
+public class CreateCompanyHandler(IPharmacyDbContext context) : IRequestHandler<CreateCompanyCommand, Guid>
 {
-    private readonly IPharmacyDbContext _context;
-
-    public CreateCompanyHandler(IPharmacyDbContext context)
-    {
-        _context = context;
-    }
+    private readonly IPharmacyDbContext _context = context;
 
     public async Task<Guid> Handle(CreateCompanyCommand request, CancellationToken cancellationToken)
     {
@@ -31,10 +26,6 @@ public class CreateCompanyHandler : IRequestHandler<CreateCompanyCommand, Guid>
             existingCompany.Address = dto.Address;
             existingCompany.LicenseNumber = dto.LicenseNumber;
             existingCompany.ContactNumber = dto.ContactNumber;
-            existingCompany.InvoiceHeaderText = dto.InvoiceHeaderText;
-            existingCompany.InvoiceFooterText = dto.InvoiceFooterText;
-            existingCompany.PrintShowGst = dto.PrintShowGst;
-            existingCompany.PrintShowExpiry = dto.PrintShowExpiry;
             existingCompany.LastModified = DateTime.UtcNow;
 
             await _context.SaveChangesAsync(cancellationToken);
@@ -48,10 +39,6 @@ public class CreateCompanyHandler : IRequestHandler<CreateCompanyCommand, Guid>
             Address = dto.Address,
             LicenseNumber = dto.LicenseNumber,
             ContactNumber = dto.ContactNumber,
-            InvoiceHeaderText = dto.InvoiceHeaderText,
-            InvoiceFooterText = dto.InvoiceFooterText,
-            PrintShowGst = dto.PrintShowGst,
-            PrintShowExpiry = dto.PrintShowExpiry
         };
 
         _context.Companies.Add(newCompany);

@@ -2,7 +2,7 @@
 @page "/invoices/edit/{InvoiceId:guid}"
 @attribute [Authorize(Policy = "Invoice.View")]
 @using Shsmg.Pharma.Application.Common
-
+@rendermode InteractiveServer
 
 @inject IMediator Mediator
 @inject NavigationManager Navigation
@@ -74,6 +74,7 @@
                         <thead class="table-light">
                             <tr>
                                 <th>Description</th>
+                                <th>HSN/SAC</th>
                                 <th>Package</th>
                                 <th>Batch</th>
                                 <th>Expiry</th>
@@ -91,6 +92,9 @@
                                 <tr>
                                     <td>
                                         <InputText class="form-control" @bind-Value="item.Description" />
+                                    </td>
+                                    <td>
+                                        <InputText class="form-control" @bind-Value="item.HsnCode" />
                                     </td>
                                     <td>
                                         <InputSelect class="form-control" @bind-Value="item.Package">
@@ -116,10 +120,10 @@
                                     <td>
                                         <InputNumber class="form-control" @bind-Value="item.GstPercentage" step="0.01" />
                                     </td>
-                                    <td class="text-end">@LineTotal(item):C</td>
+                                    <td class="text-end">@LineTotal(item).ToString("C")</td>
                                     <td>
                                         <button type="button" class="btn btn-sm btn-outline-danger"
-                                                @onclick="() => RemoveItem(index)">Remove</button>
+                                                @onclick="() => RemoveItem(item)">Remove</button>
                                     </td>
                                 </tr>
                             }
@@ -132,13 +136,13 @@
                 <div class="col-md-4 offset-md-8">
                     <dl class="row">
                         <dt class="col-6">Subtotal</dt>
-                        <dd class="col-6 text-end">@Invoice.GrossTotal:C</dd>
+                        <dd class="col-6 text-end">@Invoice.GrossTotal.ToString("C")</dd>
 
                         <dt class="col-6">GST</dt>
-                        <dd class="col-6 text-end">@Invoice.TotalGst:C</dd>
+                        <dd class="col-6 text-end">@Invoice.TotalGst.ToString("C")</dd>
 
                         <dt class="col-6">Total</dt>
-                        <dd class="col-6 text-end fw-bold">@Invoice.NetTotal:C</dd>
+                        <dd class="col-6 text-end fw-bold">@Invoice.NetTotal.ToString("C")</dd>
                     </dl>
                 </div>
             </div>
@@ -157,6 +161,7 @@
 
     private bool IsEdit => InvoiceId.HasValue;
     private bool IsLoading = true;
+    private bool IsSaving = false;
     private bool NotFound;
     private CreateInvoiceDto Invoice = new CreateInvoiceDto();
     private List<string> ValidationErrors = new();
@@ -178,7 +183,7 @@
 
         if (!Invoice.Items.Any())
         {
-            Invoice.Items.Add(new InvoiceItemDto());
+            Invoice.Items.Add(new InvoiceItemDto { Id = Guid.Empty });
         }
 
         IsLoading = false;
@@ -186,6 +191,8 @@
 
     private async Task SaveAsync()
     {
+        if (IsSaving) return; // Prevent multiple clicks
+        IsSaving = true;
         ValidationErrors.Clear();
 
         try
@@ -202,6 +209,10 @@
                 .Distinct()
                 .ToList();
         }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+        {
+            ValidationErrors.Add("The record was modified by another user. Please refresh and try again.");
+        }
         catch (Exception exception)
         {
             ValidationErrors.Add(exception.Message);
@@ -213,17 +224,20 @@
         Invoice.Items.Add(new InvoiceItemDto());
     }
 
-    private void RemoveItem(int index)
+    private void RemoveItem(InvoiceItemDto item)
     {
-        if (index >= 0 && index < Invoice.Items.Count)
+        Invoice.Items.Remove(item);
+    
+        // Ensure there is always at least one row visible
+        if (!Invoice.Items.Any())
         {
-            Invoice.Items.RemoveAt(index);
+            Invoice.Items.Add(new InvoiceItemDto { Id = Guid.Empty });
         }
     }
 
     private decimal LineTotal(InvoiceItemDto item)
     {
-        return item.Quantity * item.Rate + item.Quantity * item.Rate * (item.GstPercentage / 100);
+        return item.Quantity * item.Rate;
     }
 
     private void BackToList() => Navigation.NavigateTo("/invoices");

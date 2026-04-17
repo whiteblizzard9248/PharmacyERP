@@ -1,5 +1,6 @@
 @page "/invoices/{InvoiceId:guid}"
 @attribute [Authorize(Policy = "Invoice.View")]
+@rendermode InteractiveServer
 
 @inject IMediator Mediator
 @inject NavigationManager Navigation
@@ -61,6 +62,7 @@
                 <thead class="table-light">
                     <tr>
                         <th>Description</th>
+                        <th>HSN/SAC</th>
                         <th>Package</th>
                         <th>Batch</th>
                         <th>Expiry</th>
@@ -75,13 +77,14 @@
                     {
                         <tr>
                             <td>@item.Description</td>
+                            <td>@item.HsnCode</td>
                             <td>@item.Package</td>
                             <td>@item.Batch</td>
                             <td>@item.ExpiryDate</td>
                             <td>@item.Quantity</td>
-                            <td>@item.Rate:C</td>
+                            <td>@item.Rate.ToString("C")</td>
                             <td>@item.GstPercentage %</td>
-                            <td>@(item.TotalWithoutTax + item.GstAmount).ToString("C")</td>
+                            <td>@((item.TotalWithoutTax + item.GstAmount).ToString("C"))</td>
                         </tr>
                     }
                 </tbody>
@@ -92,13 +95,13 @@
             <div class="col-md-4 offset-md-8">
                 <dl class="row">
                     <dt class="col-6">Subtotal</dt>
-                    <dd class="col-6 text-end">@Invoice.GrossTotal:C</dd>
+                    <dd class="col-6 text-end">@Invoice.GrossTotal.ToString("C")</dd>
 
                     <dt class="col-6">GST total</dt>
-                    <dd class="col-6 text-end">@Invoice.TotalGst:C</dd>
+                    <dd class="col-6 text-end">@Invoice.TotalGst.ToString("C")</dd>
 
                     <dt class="col-6">Net total</dt>
-                    <dd class="col-6 text-end fw-bold">@Invoice.NetTotal:C</dd>
+                    <dd class="col-6 text-end fw-bold">@Invoice.NetTotal.ToString("C")</dd>
                 </dl>
             </div>
         </div>

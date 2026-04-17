@@ -3,16 +3,10 @@ using Shsmg.Pharma.Application.Common;
 
 namespace Shsmg.Pharma.WebUI.Services;
 
-public class PermissionService
+public class PermissionService(IAuthorizationService authorizationService, IHttpContextAccessor httpContextAccessor)
 {
-    private readonly IAuthorizationService _authorizationService;
-    private readonly IHttpContextAccessor _httpContextAccessor;
-
-    public PermissionService(IAuthorizationService authorizationService, IHttpContextAccessor httpContextAccessor)
-    {
-        _authorizationService = authorizationService;
-        _httpContextAccessor = httpContextAccessor;
-    }
+    private readonly IAuthorizationService _authorizationService = authorizationService;
+    private readonly IHttpContextAccessor _httpContextAccessor = httpContextAccessor;
 
     public async Task<bool> HasPermissionAsync(string permission)
     {
@@ -31,4 +25,14 @@ public class PermissionService
         }
         return false;
     }
+
+    public Task<bool> IsInRoleAsync(string role)
+    {
+        var user = _httpContextAccessor.HttpContext?.User;
+        return Task.FromResult(user?.IsInRole(role) == true);
+    }
+
+    public Task<bool> IsManagerAsync() => IsInRoleAsync(Roles.Manager);
+
+    public Task<bool> IsAdminAsync() => IsInRoleAsync(Roles.Admin);
 }

@@ -4,6 +4,7 @@
 @inject IMediator Mediator
 @inject NavigationManager Navigation
 @inject Shsmg.Pharma.WebUI.Services.PermissionService PermissionService
+@rendermode InteractiveServer
 
 <PageTitle>Store Profile</PageTitle>
 
@@ -57,31 +58,6 @@
                             <label class="form-label">License number</label>
                             <InputText class="form-control" @bind-Value="StoreProfile.LicenseNumber" />
                         </div>
-                        <div class="col-12">
-                            <hr />
-                            <h5>Invoice print settings</h5>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Invoice header text</label>
-                            <InputTextArea class="form-control" rows="3" @bind-Value="StoreProfile.InvoiceHeaderText" />
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Invoice footer text</label>
-                            <InputTextArea class="form-control" rows="3" @bind-Value="StoreProfile.InvoiceFooterText" />
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-check">
-                                <InputCheckbox class="form-check-input" id="showGst" @bind-Value="StoreProfile.PrintShowGst" />
-                                <label class="form-check-label" for="showGst">Show GST on print</label>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-check">
-                                <InputCheckbox class="form-check-input" id="showExpiry"
-                                               @bind-Value="StoreProfile.PrintShowExpiry" />
-                                <label class="form-check-label" for="showExpiry">Show expiry on print</label>
-                            </div>
-                        </div>
                     </div>
 
                     <div class="d-flex justify-content-end gap-2">
@@ -110,37 +86,15 @@
                         <p class="form-control-plaintext">@StoreProfile.LicenseNumber</p>
                     </div>
                 </div>
-                <div class="row g-3 mb-4">
-                    <div class="col-12">
-                        <hr />
-                        <h5>Invoice print settings</h5>
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label">Invoice header text</label>
-                        <p class="form-control-plaintext">@StoreProfile.InvoiceHeaderText</p>
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label">Invoice footer text</label>
-                        <p class="form-control-plaintext">@StoreProfile.InvoiceFooterText</p>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Show GST on print</label>
-                        <p class="form-control-plaintext">@(StoreProfile.PrintShowGst ? "Yes" : "No")</p>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Show expiry on print</label>
-                        <p class="form-control-plaintext">@(StoreProfile.PrintShowExpiry ? "Yes" : "No")</p>
-                    </div>
-                </div>
             }
         }
     </div>
 
 @code {
-    private CompanyDto StoreProfile = new CompanyDto();
+    private CompanyDto StoreProfile = new();
     private bool IsLoading = true;
     private bool CanEditCompany;
-    private List<string> ValidationErrors = new();
+    private List<string> ValidationErrors = [];
 
     protected override async Task OnInitializedAsync()
     {

@@ -4,14 +4,9 @@ using Shsmg.Pharma.Application.DTOs;
 
 namespace Shsmg.Pharma.Application.Features.Auth;
 
-public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginResultDto>
+public sealed class LoginCommandHandler(IIdentityService identityService) : IRequestHandler<LoginCommand, LoginResultDto>
 {
-    private readonly IIdentityService _identityService;
-
-    public LoginCommandHandler(IIdentityService identityService)
-    {
-        _identityService = identityService;
-    }
+    private readonly IIdentityService _identityService = identityService;
 
     public Task<LoginResultDto> Handle(LoginCommand request, CancellationToken cancellationToken)
     {

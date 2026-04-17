@@ -35,6 +35,7 @@ public class CreateInvoiceHandler(IPharmacyDbContext context) : IRequestHandler<
                 NetTotal = dto.NetTotal,
                 Items = [.. dto.Items.Select(item => new InvoiceItem
                 {
+                    Id = item.Id,
                     Description = item.Description,
                     Package = item.Package.ToString(),
                     Mfg = item.Mfg,
@@ -50,30 +51,57 @@ public class CreateInvoiceHandler(IPharmacyDbContext context) : IRequestHandler<
         }
         else
         {
-            invoice.PatientName = dto.PatientName;
-            invoice.DoctorName = dto.DoctorName;
-            invoice.InvoiceDate = dto.Date;
-            invoice.GrossTotal = dto.GrossTotal;
-            invoice.TaxTotal = dto.TotalGst;
-            invoice.NetTotal = dto.NetTotal;
+            // Update main Invoice properties
+            _context.Entry(invoice).CurrentValues.SetValues(dto); // Shorthand to copy matching properties
+            invoice.InvoiceDate = DateTime.SpecifyKind(dto.Date, DateTimeKind.Utc);
 
-            var existingItems = invoice.Items.ToList();
-            foreach (var existingItem in existingItems)
+            // 1. Get the list of IDs currently in the DTO
+            var dtoItemIds = dto.Items.Select(i => i.Id).Where(id => id != Guid.Empty).ToList();
+
+            // 2. Identify items to Remove (Soft Delete)
+            // IMPORTANT: Only remove items that aren't already marked IsDeleted
+            var itemsToRemove = invoice.Items
+                .Where(i => !dtoItemIds.Contains(i.Id) && !i.IsDeleted)
+                .ToList();
+
+            foreach (var item in itemsToRemove)
             {
-                _context.InvoiceItems.Remove(existingItem);
+                _context.InvoiceItems.Remove(item);
             }
 
-            invoice.Items = [.. dto.Items.Select(item => new InvoiceItem
+            // 3. Update or Add
+            foreach (var dtoItem in dto.Items)
             {
-                Description = item.Description,
-                Package = item.Package.ToString(),
-                Mfg = item.Mfg,
-                Batch = item.Batch,
-                ExpiryDate = item.ExpiryDate,
-                Quantity = item.Quantity,
-                Rate = item.Rate,
-                GstPercentage = item.GstPercentage
-            })];
+                // Find existing item, ensuring we don't try to update a "Deleted" one
+                var existingItem = invoice.Items
+                    .FirstOrDefault(i => i.Id == dtoItem.Id && i.Id != Guid.Empty && !i.IsDeleted);
+
+                if (existingItem != null)
+                {
+                    // UPDATE: EF handles the tracking, just update values
+                    existingItem.Description = dtoItem.Description;
+                    existingItem.Quantity = dtoItem.Quantity;
+                    existingItem.Rate = dtoItem.Rate;
+                    existingItem.GstPercentage = dtoItem.GstPercentage;
+                    existingItem.Batch = dtoItem.Batch;
+                    existingItem.ExpiryDate = dtoItem.ExpiryDate;
+                    existingItem.Package = dtoItem.Package.ToString();
+                }
+                else if (dtoItem.Id == Guid.Empty || !invoice.Items.Any(i => i.Id == dtoItem.Id))
+                {
+                    // ADD: New item
+                    invoice.Items.Add(new InvoiceItem
+                    {
+                        Description = dtoItem.Description,
+                        Quantity = dtoItem.Quantity,
+                        Rate = dtoItem.Rate,
+                        GstPercentage = dtoItem.GstPercentage,
+                        Batch = dtoItem.Batch,
+                        ExpiryDate = dtoItem.ExpiryDate,
+                        Package = dtoItem.Package.ToString()
+                    });
+                }
+            }
         }
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -82,6 +110,14 @@ public class CreateInvoiceHandler(IPharmacyDbContext context) : IRequestHandler<
 
     private static string GenerateInvoiceNumber(DateTime date)
     {
-        return $"INV-{date:yyyyMMdd}-{Guid.NewGuid():N}".ToUpperInvariant();
+        return $"INV-{date:yyyyMMdd}-{Generate(6)}";
+    }
+
+    private static string Generate(int length)
+    {
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        var random = new Random();
+
+        return new string([.. Enumerable.Range(0, length).Select(_ => chars[random.Next(chars.Length)])]);
     }
 }

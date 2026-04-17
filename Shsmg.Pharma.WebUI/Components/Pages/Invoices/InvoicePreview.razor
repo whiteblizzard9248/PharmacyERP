@@ -1,0 +1,195 @@
+@page "/invoices/print/{InvoiceId:guid}"
+@using Shsmg.Pharma.Application.DTOs
+@inject IPdfGeneratorService PdfService
+@inject IJSRuntime JSRuntime
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+
+<PageTitle>Invoice Print Preview</PageTitle>
+
+<div class="container py-4">
+    @if (IsLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted">Loading preview...</p>
+        </div>
+    }
+    else if (Invoice == null || Company == null)
+    {
+        <div class="alert alert-danger">Failed to load invoice or company details.</div>
+    }
+    else
+    {
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h4 class="mb-0">Invoice Preview (A6 Format)</h4>
+            </div>
+            <div>
+                <button class="btn btn-outline-secondary me-2" @onclick="GoBack">Back</button>
+                <button class="btn btn-primary shadow-sm" @onclick="DownloadPdfAsync">
+                    <i class="bi bi-file-earmark-pdf me-2"></i> Download PDF
+                </button>
+            </div>
+        </div>
+
+        <div class="invoice-wrapper">
+            <div class="invoice-a6-sheet">
+                <div class="header text-center">
+                    <div class="d-flex justify-content-between align-items-center px-2">
+                        <div class="text-start">
+                            <div class="kannada-text fw-bold">ಶ್ರೀ ಧನಲಕ್ಷ್ಮಿ ಮೆಡಿಕಲ್ಸ್</div>
+                            <h5 class="eng-title mb-0">@Company.Name</h5>
+                        </div>
+                        <div class="text-end text-danger fw-bold fs-5">
+                            No. @Invoice.InvoiceNumber
+                        </div>
+                    </div>
+                    <div class="company-meta mt-1">
+                        @Company.Address. M. @Company.ContactNumber <br/>
+                        DL No. @Company.LicenseNumber
+                    </div>
+                </div>
+
+                <div class="meta-section border-top border-bottom my-2 py-1 px-2">
+                    <div class="row g-0">
+                        <div class="col-8"><strong>Patient Name:</strong> @Invoice.PatientName</div>
+                        <div class="col-4 text-end"><strong>Date:</strong> @Invoice.Date.ToString("dd/MM/yy")</div>
+                    </div>
+                    <div class="row g-0 mt-1">
+                        <div class="col-12"><strong>Doctor:</strong> @Invoice.DoctorName</div>
+                    </div>
+                </div>
+
+                <div class="table-responsive px-1">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 10%">Qty.</th>
+                                <th style="width: 40%">Description</th>
+                                <th style="width: 15%">HSN/SAC</th>
+                                <th style="width: 10%">Pkg.</th>
+                                <th style="width: 10%">Mfg.</th>
+                                <th style="width: 10%">Batch</th>
+                                <th style="width: 10%">Exp. Dt.</th>
+                                <th style="width: 10%" class="text-end">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Invoice.Items)
+                            {
+                                <tr>
+                                    <td>@item.Quantity</td>
+                                    <td>@item.Description</td>
+                                    <td>@item.HsnCode</td>
+                                    <td>@item.Package</td>
+                                    <td>@item.Mfg</td>
+                                    <td>@item.Batch</td>
+                                    <td>@item.ExpiryDate</td>
+                                    <td class="text-end">@item.LineTotal.ToString("N2")</td>
+                                </tr>
+                            }
+                            @for (int i = 0; i < Math.Max(0, 8 - Invoice.Items.Count); i++)
+                            {
+                                <tr class="filler-row"><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="footer px-2 mt-2">
+                    <div class="d-flex justify-content-between align-items-end">
+                        <div class="notes">
+                            <div class="kannada-text-small fw-bold">ಈ ಔಷಧಗಳನ್ನು ನಿಮ್ಮ ವೈದ್ಯರಿಗೆ ತೋರಿಸಿ ಸೇವಿಸಿ</div>
+                            <div>Goods once sold cannot be taken back or exchanged</div>
+                        </div>
+                        <div class="total-box border px-2 py-1">
+                            <strong>Total</strong>
+                            <span class="ms-3 fw-bold">@Invoice.NetTotal.ToString("N2")</span>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between mt-4 pb-2 px-3">
+                        <span class="signature-line">Customer Signature</span>
+                        <span class="signature-line">Q.p. Signature</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    /* Screen Wrapper for Preview */
+    .invoice-wrapper {
+        display: flex;
+        justify-content: center;
+        background: #e9ecef;
+        padding: 2rem;
+        border-radius: 8px;
+    }
+
+    /* A6 Layout Simulator */
+    .invoice-a6-sheet {
+        background: white;
+        width: 105mm; /* Quarter A4 width */
+        min-height: 148mm; /* Quarter A4 height */
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        color: #002D62; /* Primary blue ink */
+        font-family: Arial, sans-serif;
+    }
+
+    .kannada-text { font-size: 13px; }
+    .kannada-text-small { font-size: 10px; }
+    .eng-title { font-weight: 700; color: #002D62; }
+    .company-meta { font-size: 10px; line-height: 1.2; }
+    
+    .meta-section { font-size: 11px; border-color: #002D62 !important; }
+    
+    .data-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+    .data-table th, .data-table td { 
+        border: 1px solid #002D62; 
+        padding: 2px 4px; 
+    }
+    .data-table th { font-weight: bold; }
+    .filler-row { height: 22px; }
+
+    .notes { font-size: 9px; }
+    .total-box { border-color: #002D62 !important; font-size: 12px; }
+    
+    .signature-line { 
+        border-top: 1px solid #002D62; 
+        font-size: 10px; 
+        width: 100px; 
+        text-align: center; 
+        padding-top: 3px; 
+    }
+</style>
+
+
+@code {
+    [Parameter] public Guid InvoiceId { get; set; }
+    private CreateInvoiceDto? Invoice;
+    private CompanyDto? Company;
+    private bool IsLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Invoice = await Mediator.Send(new GetInvoiceByIdQuery(InvoiceId));
+        Company = await Mediator.Send(new GetCompanyQuery());
+        IsLoading = false;
+    }
+
+    private async Task DownloadPdfAsync()
+    {
+        if (Invoice == null || Company == null) return;
+
+        // One line call to the injected service!
+        byte[] pdfBytes = PdfService.GeneratePdf(Invoice, Company);
+
+        var fileName = $"Invoice_{Invoice.InvoiceNumber}.pdf";
+        var base64 = Convert.ToBase64String(pdfBytes);
+        await JSRuntime.InvokeVoidAsync("downloadFileFromBase64", fileName, base64);
+    }
+
+    private void GoBack() => Navigation.NavigateTo($"/invoices/{InvoiceId}");
+}

@@ -7,14 +7,9 @@ namespace Shsmg.Pharma.Application.Features.Invoices.Queries;
 
 public record GetInvoiceSummariesQuery : IRequest<IEnumerable<InvoiceSummaryDto>>;
 
-public sealed class GetInvoiceSummariesQueryHandler : IRequestHandler<GetInvoiceSummariesQuery, IEnumerable<InvoiceSummaryDto>>
+public sealed class GetInvoiceSummariesQueryHandler(IPharmacyDbContext context) : IRequestHandler<GetInvoiceSummariesQuery, IEnumerable<InvoiceSummaryDto>>
 {
-    private readonly IPharmacyDbContext _context;
-
-    public GetInvoiceSummariesQueryHandler(IPharmacyDbContext context)
-    {
-        _context = context;
-    }
+    private readonly IPharmacyDbContext _context = context;
 
     public async Task<IEnumerable<InvoiceSummaryDto>> Handle(GetInvoiceSummariesQuery request, CancellationToken cancellationToken)
     {

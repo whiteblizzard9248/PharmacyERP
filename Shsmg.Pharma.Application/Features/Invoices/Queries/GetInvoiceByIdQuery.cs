@@ -7,14 +7,9 @@ namespace Shsmg.Pharma.Application.Features.Invoices.Queries;
 
 public record GetInvoiceByIdQuery(Guid InvoiceId) : IRequest<CreateInvoiceDto?>;
 
-public sealed class GetInvoiceByIdQueryHandler : IRequestHandler<GetInvoiceByIdQuery, CreateInvoiceDto?>
+public sealed class GetInvoiceByIdQueryHandler(IPharmacyDbContext context) : IRequestHandler<GetInvoiceByIdQuery, CreateInvoiceDto?>
 {
-    private readonly IPharmacyDbContext _context;
-
-    public GetInvoiceByIdQueryHandler(IPharmacyDbContext context)
-    {
-        _context = context;
-    }
+    private readonly IPharmacyDbContext _context = context;
 
     public async Task<CreateInvoiceDto?> Handle(GetInvoiceByIdQuery request, CancellationToken cancellationToken)
     {
@@ -38,6 +33,7 @@ public sealed class GetInvoiceByIdQueryHandler : IRequestHandler<GetInvoiceByIdQ
             Items = invoice.Items.Select(item => new InvoiceItemDto
             {
                 Description = item.Description ?? "",
+                HsnCode = item.HsnCode ?? "",
                 Package = Enum.TryParse<PackageType>(item.Package, out var result) ? result : PackageType.Unit,
                 Mfg = item.Mfg ?? string.Empty,
                 Batch = item.Batch ?? string.Empty,

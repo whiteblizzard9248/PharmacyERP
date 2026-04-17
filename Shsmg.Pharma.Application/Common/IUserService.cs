@@ -8,4 +8,5 @@ public interface IUserService
     Task<UserDto?> GetUserByIdAsync(string userId);
     Task CreateUserAsync(string email, string password, List<string> roles);
     Task UpdateUserAsync(string userId, string email, List<string> roles);
+    Task DeleteUserAsync(string userId);
 }

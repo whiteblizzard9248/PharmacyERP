@@ -3,4 +3,5 @@
   <Project Path="Shsmg.Pharma.Domain/Shsmg.Pharma.Domain.csproj" />
   <Project Path="Shsmg.Pharma.Infra/Shsmg.Pharma.Infra.csproj" />
   <Project Path="Shsmg.Pharma.WebUI/Shsmg.Pharma.WebUI.csproj" />
+  <!-- <Project Path="Shsmg.Pharma.Application.Tests/Shsmg.Pharma.Application.Tests.csproj" /> -->
 </Solution>

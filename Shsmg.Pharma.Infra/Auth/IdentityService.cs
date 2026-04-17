@@ -4,16 +4,10 @@ using Shsmg.Pharma.Application.DTOs;
 
 namespace Shsmg.Pharma.Infra.Auth;
 
-public sealed class IdentityService : IIdentityService
+public sealed class IdentityService(UserManager<AppUser> userManager, SignInManager<AppUser> signInManager) : IIdentityService
 {
-    private readonly UserManager<AppUser> _userManager;
-    private readonly SignInManager<AppUser> _signInManager;
-
-    public IdentityService(UserManager<AppUser> userManager, SignInManager<AppUser> signInManager)
-    {
-        _userManager = userManager;
-        _signInManager = signInManager;
-    }
+    private readonly UserManager<AppUser> _userManager = userManager;
+    private readonly SignInManager<AppUser> _signInManager = signInManager;
 
     public async Task<LoginResultDto> LoginAsync(string email, string password, bool rememberMe)
     {

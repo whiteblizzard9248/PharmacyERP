@@ -1,17 +1,11 @@
 using MediatR;
 using Shsmg.Pharma.Application.Common;
-using Shsmg.Pharma.Application.Common;
 
 namespace Shsmg.Pharma.Application.Features.Users.Commands;
 
-public sealed class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand, Unit>
+public sealed class UpdateUserCommandHandler(IUserService userService) : IRequestHandler<UpdateUserCommand, Unit>
 {
-    private readonly IUserService _userService;
-
-    public UpdateUserCommandHandler(IUserService userService)
-    {
-        _userService = userService;
-    }
+    private readonly IUserService _userService = userService;
 
     public async Task<Unit> Handle(UpdateUserCommand request, CancellationToken cancellationToken)
     {

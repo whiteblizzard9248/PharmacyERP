@@ -1,5 +1,6 @@
 @page "/invoices"
 @attribute [Authorize(Policy = "Invoice.View")]
+@rendermode InteractiveServer
 
 @inject IMediator Mediator
 @inject NavigationManager Navigation
@@ -49,7 +50,7 @@
                             <td>@invoice.InvoiceNumber</td>
                             <td>@invoice.Date.ToString("dd MMM yyyy")</td>
                             <td>@invoice.PatientName</td>
-                            <td>@invoice.NetTotal:C</td>
+                            <td>@invoice.NetTotal.ToString("C")</td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary me-2"
                                         @onclick="() => ViewInvoice(invoice.Id)">View</button>

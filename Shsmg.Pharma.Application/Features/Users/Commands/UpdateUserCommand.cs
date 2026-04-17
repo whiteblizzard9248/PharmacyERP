@@ -2,16 +2,9 @@ using MediatR;
 
 namespace Shsmg.Pharma.Application.Features.Users.Commands;
 
-public sealed class UpdateUserCommand : IRequest<Unit>
+public sealed class UpdateUserCommand(string userId, string email, List<string> roles) : IRequest<Unit>
 {
-    public UpdateUserCommand(string userId, string email, List<string> roles)
-    {
-        UserId = userId;
-        Email = email;
-        Roles = roles;
-    }
-
-    public string UserId { get; }
-    public string Email { get; }
-    public List<string> Roles { get; }
+    public string UserId { get; } = userId;
+    public string Email { get; } = email;
+    public List<string> Roles { get; } = roles;
 }

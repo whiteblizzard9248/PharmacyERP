@@ -4,15 +4,10 @@ using Microsoft.Extensions.Logging;
 
 namespace Shsmg.Pharma.Application.Behaviors;
 
-public sealed class RequestLoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
+public sealed class RequestLoggingBehavior<TRequest, TResponse>(ILogger<RequestLoggingBehavior<TRequest, TResponse>> logger) : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
-    private readonly ILogger<RequestLoggingBehavior<TRequest, TResponse>> _logger;
-
-    public RequestLoggingBehavior(ILogger<RequestLoggingBehavior<TRequest, TResponse>> logger)
-    {
-        _logger = logger;
-    }
+    private readonly ILogger<RequestLoggingBehavior<TRequest, TResponse>> _logger = logger;
 
     public async Task<TResponse> Handle(
         TRequest request,
@@ -25,7 +20,7 @@ public sealed class RequestLoggingBehavior<TRequest, TResponse> : IPipelineBehav
 
         _logger.LogInformation("Handling {RequestName} {@Request}", requestName, request);
 
-        var response = await next();
+        var response = await next(cancellationToken);
 
         activity.Stop();
         _logger.LogInformation(

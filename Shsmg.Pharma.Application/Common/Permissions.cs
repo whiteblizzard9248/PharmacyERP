@@ -36,10 +36,13 @@ public static class Roles
             Permissions.InvoiceView,
             Permissions.InvoiceCreate,
             Permissions.InvoiceEdit,
-            Permissions.InvoiceDelete
+            Permissions.InvoiceDelete,
+            Permissions.UserManage
         ],
         [Employee] = [
             Permissions.CompanyView,
+            Permissions.InvoiceCreate,
+            Permissions.InvoiceEdit,
             Permissions.InvoiceView
         ]
     };

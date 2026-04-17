@@ -1,21 +1,21 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Http;
 using Shsmg.Pharma.Application.Common;
 using Shsmg.Pharma.Application.DTOs;
 
 namespace Shsmg.Pharma.Infra.Auth;
 
-public sealed class UserService : IUserService
+public sealed class UserService(UserManager<AppUser> userManager, IHttpContextAccessor httpContextAccessor) : IUserService
 {
-    private readonly UserManager<AppUser> _userManager;
-
-    public UserService(UserManager<AppUser> userManager)
-    {
-        _userManager = userManager;
-    }
+    private readonly UserManager<AppUser> _userManager = userManager;
+    private readonly IHttpContextAccessor _httpContextAccessor = httpContextAccessor;
 
     public async Task<IEnumerable<UserDto>> GetUsersAsync()
     {
-        var users = _userManager.Users.ToList();
+        var users = _userManager.Users
+            .Where(user => user.LockoutEnd == null || user.LockoutEnd <= DateTimeOffset.UtcNow)
+            .ToList();
         var userDtos = new List<UserDto>();
 
         foreach (var user in users)
@@ -24,8 +24,8 @@ public sealed class UserService : IUserService
             userDtos.Add(new UserDto
             {
                 Id = user.Id,
-                Email = user.Email ?? user.UserName,
-                Roles = roles.ToList()
+                Email = user.Email!,
+                Roles = [.. roles]
             });
         }
 
@@ -41,13 +41,15 @@ public sealed class UserService : IUserService
         return new UserDto
         {
             Id = user.Id,
-            Email = user.Email ?? user.UserName,
-            Roles = roles.ToList()
+            Email = user.Email!,
+            Roles = [.. roles]
         };
     }
 
     public async Task CreateUserAsync(string email, string password, List<string> roles)
     {
+        ValidateRoleAssignment(roles);
+
         var user = new AppUser
         {
             UserName = email,
@@ -73,11 +75,15 @@ public sealed class UserService : IUserService
 
     public async Task UpdateUserAsync(string userId, string email, List<string> roles)
     {
+        ValidateRoleAssignment(roles);
+
         var user = await _userManager.FindByIdAsync(userId);
         if (user == null)
         {
             throw new Exception("User not found.");
         }
+
+        await EnsureTargetManageableAsync(user);
 
         // Update email if changed
         if (user.Email != email)
@@ -113,5 +119,79 @@ public sealed class UserService : IUserService
                 throw new Exception(string.Join(", ", addResult.Errors.Select(e => e.Description)));
             }
         }
+    }
+
+    public async Task DeleteUserAsync(string userId)
+    {
+        if (!IsCurrentUserManager())
+        {
+            throw new UnauthorizedAccessException("Only managers may delete users.");
+        }
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null)
+        {
+            throw new Exception("User not found.");
+        }
+
+        var roles = await _userManager.GetRolesAsync(user);
+        if (roles.Contains(Roles.Admin) || roles.Contains(Roles.Manager))
+        {
+            throw new UnauthorizedAccessException("Managers may only delete employees.");
+        }
+
+        user.LockoutEnabled = true;
+        user.LockoutEnd = DateTimeOffset.MaxValue;
+
+        var result = await _userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+        {
+            throw new Exception(string.Join(", ", result.Errors.Select(e => e.Description)));
+        }
+    }
+
+    private void ValidateRoleAssignment(List<string> roles)
+    {
+        if (IsCurrentUserManager())
+        {
+            if (roles.Any(r => r != Roles.Employee))
+            {
+                throw new UnauthorizedAccessException("Managers may only assign the Employee role.");
+            }
+        }
+        else if (IsCurrentUserAdmin())
+        {
+            if (roles.Any(r => r == Roles.Admin))
+            {
+                throw new UnauthorizedAccessException("Admins may only assign Manager or Employee roles.");
+            }
+        }
+    }
+
+    private async Task EnsureTargetManageableAsync(AppUser user)
+    {
+        if (IsCurrentUserManager())
+        {
+            var roles = await _userManager.GetRolesAsync(user);
+            if (roles.Contains(Roles.Admin) || roles.Contains(Roles.Manager))
+            {
+                throw new UnauthorizedAccessException("Managers may only manage employees.");
+            }
+        }
+    }
+
+    private string? GetCurrentUserId()
+    {
+        return _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+    }
+
+    private bool IsCurrentUserAdmin()
+    {
+        return _httpContextAccessor.HttpContext?.User?.IsInRole(Roles.Admin) == true;
+    }
+
+    private bool IsCurrentUserManager()
+    {
+        return _httpContextAccessor.HttpContext?.User?.IsInRole(Roles.Manager) == true;
     }
 }

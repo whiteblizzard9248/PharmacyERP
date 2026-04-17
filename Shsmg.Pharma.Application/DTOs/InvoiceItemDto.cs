@@ -5,7 +5,9 @@ namespace Shsmg.Pharma.Application.DTOs;
 public class InvoiceItemDto
 {
     // Basic Details
+    public Guid Id { get; set; }
     public string Description { get; set; } = string.Empty;
+    public string HsnCode { get; set; } = string.Empty;
     public PackageType Package { get; set; } = PackageType.Unit; // e.g., 10's
     public string Mfg { get; set; } = string.Empty;
     public string Batch { get; set; } = string.Empty;
@@ -17,7 +19,8 @@ public class InvoiceItemDto
     public decimal GstPercentage { get; set; } // e.g., 12.00
 
     // Calculated fields for the UI to display
-    public decimal TotalWithoutTax => Quantity * Rate;
-    public decimal GstAmount => TotalWithoutTax * (GstPercentage / 100);
-    public decimal LineTotal => TotalWithoutTax + GstAmount;
+    public decimal TotalWithTax => Quantity * Rate;
+    public decimal TotalWithoutTax => TotalWithTax / (1 + GstPercentage / 100);
+    public decimal GstAmount => TotalWithTax - TotalWithoutTax;
+    public decimal LineTotal => TotalWithTax;
 }
