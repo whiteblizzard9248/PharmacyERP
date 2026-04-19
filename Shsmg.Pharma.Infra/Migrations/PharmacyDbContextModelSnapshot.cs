@@ -252,6 +252,11 @@ namespace Shsmg.Pharma.Infra.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
                     b.Property<decimal>("TaxTotal")
                         .HasPrecision(12, 2)
                         .HasColumnType("numeric(12,2)");

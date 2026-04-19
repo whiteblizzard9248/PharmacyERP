@@ -3,9 +3,9 @@
 @rendermode InteractiveServer
 
 @using Shsmg.Pharma.Application.Common
-@using Shsmg.Pharma.Application.Features.Users.Commands
+@using Shsmg.Pharma.Application.Services
 
-@inject IMediator Mediator
+@inject Shsmg.Pharma.Application.Services.IUserService UserService
 @inject NavigationManager Navigation
 @inject Shsmg.Pharma.WebUI.Services.PermissionService PermissionService
 
@@ -77,7 +77,7 @@
 
     private async Task LoadUsersAsync()
     {
-        Users = await Mediator.Send(new GetUsersQuery());
+        Users = await UserService.GetUsersAsync();
         IsLoading = false;
     }
 
@@ -86,7 +86,7 @@
 
     private async Task DeleteUser(string id)
     {
-        await Mediator.Send(new DeleteUserCommand(id));
+        await UserService.DeleteUserAsync(id);
         await LoadUsersAsync();
     }
 }

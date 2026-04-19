@@ -1,83 +1,140 @@
 @page "/login"
-@using MediatR
 @using Shsmg.Pharma.Application.DTOs
-@using Shsmg.Pharma.Application.Features.Auth
+@using Shsmg.Pharma.Application.Services
 @using System.ComponentModel.DataAnnotations
-@inject IMediator Mediator
+@inject IAuthService AuthService
 @inject NavigationManager Navigation
 
-<h3>Login</h3>
+<PageTitle>Login</PageTitle>
 
-@if (!string.IsNullOrEmpty(ErrorMessage))
-{
-    <div class="alert alert-danger" role="alert">
-        @ErrorMessage
-    </div>
-}
+<div class="login-shell">
+    <div class="container py-4 py-lg-5">
+        <div class="row justify-content-center">
+            <div class="col-12 col-xl-10">
+                <div class="login-frame shadow-lg">
+                    <div class="row g-0 align-items-stretch">
+                        <div class="col-lg-5 d-none d-lg-flex">
+                            <section class="login-aside">
+                                <span class="badge rounded-pill text-bg-light-subtle border border-light-subtle login-badge">Pharmacy ERP</span>
+                                <h1 class="display-6 fw-bold mt-4 mb-3">Welcome back</h1>
+                                <p class="lead text-white-50 mb-4">
+                                    Sign in to manage invoices, company details, and day-to-day billing without extra steps.
+                                </p>
 
-<form method="post" @formname="loginForm">
-    <AntiforgeryToken />
-    <div class="container min-vh-100 d-flex align-items-center justify-content-center">
-        <div class="col-12 col-sm-10 col-md-6 col-lg-4">
-            <div class="card shadow-sm border-0">
-                <div class="card-body p-4">
+                                <div class="login-feature-list">
+                                    <div class="login-feature-item">
+                                        <div class="login-feature-icon">1</div>
+                                        <div>
+                                            <h2 class="h6 mb-1">Fast invoice access</h2>
+                                            <p class="mb-0 text-white-50">Jump straight into billing and open recent work quickly.</p>
+                                        </div>
+                                    </div>
+                                    <div class="login-feature-item">
+                                        <div class="login-feature-icon">2</div>
+                                        <div>
+                                            <h2 class="h6 mb-1">Store profile controls</h2>
+                                            <p class="mb-0 text-white-50">Keep pharmacy details current for receipts and printed documents.</p>
+                                        </div>
+                                    </div>
+                                    <div class="login-feature-item">
+                                        <div class="login-feature-icon">3</div>
+                                        <div>
+                                            <h2 class="h6 mb-1">Simple daily workflow</h2>
+                                            <p class="mb-0 text-white-50">A clean sign-in screen that stays easy to use on desktop and mobile.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
 
-                    <h4 class="card-title text-center mb-4">Sign in</h4>
+                        <div class="col-lg-7">
+                            <section class="login-panel">
+                                <div class="text-center text-lg-start mb-4">
+                                    <span class="text-uppercase text-secondary fw-semibold small tracking">Secure access</span>
+                                    <h2 class="h3 mt-2 mb-2">Sign in to your account</h2>
+                                    <p class="text-muted mb-0">Use your registered email and password to continue.</p>
+                                </div>
 
-                    <!-- Email -->
-                    <div class="mb-3">
-                        <label class="form-label">Email</label>
-                        <input name="LoginModel.Email"
-                               class="form-control @(Errors.ContainsKey("Email") ? "is-invalid" : "")"
-                               value="@LoginModel?.Email" />
-
-                        @if (Errors.ContainsKey("Email"))
-                        {
-                            <div class="invalid-feedback d-block">
-                                @foreach (var err in Errors["Email"])
+                                @if (!string.IsNullOrEmpty(ErrorMessage))
                                 {
-                                    <div>@err</div>
+                                    <div class="alert alert-danger border-0 shadow-sm mb-4" role="alert">
+                                        @ErrorMessage
+                                    </div>
                                 }
-                            </div>
-                        }
+
+                                <form method="post" @formname="loginForm">
+                                    <AntiforgeryToken />
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold" for="email">Email address</label>
+                                        <input id="email"
+                                               name="LoginModel.Email"
+                                               type="email"
+                                               autocomplete="username"
+                                               placeholder="name@pharmacy.com"
+                                               class="form-control form-control-lg @(Errors.ContainsKey("Email") ? "is-invalid" : "")"
+                                               value="@LoginModel?.Email" />
+
+                                        @if (Errors.ContainsKey("Email"))
+                                        {
+                                            <div class="invalid-feedback d-block">
+                                                @foreach (var err in Errors["Email"])
+                                                {
+                                                    <div>@err</div>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold" for="password">Password</label>
+                                        <input id="password"
+                                               name="LoginModel.Password"
+                                               type="password"
+                                               autocomplete="current-password"
+                                               placeholder="Enter your password"
+                                               class="form-control form-control-lg @(Errors.ContainsKey("Password") ? "is-invalid" : "")" />
+
+                                        @if (Errors.ContainsKey("Password"))
+                                        {
+                                            <div class="invalid-feedback d-block">
+                                                @foreach (var err in Errors["Password"])
+                                                {
+                                                    <div>@err</div>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+
+                                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+                                        <div class="form-check m-0">
+                                            <input id="rememberMe"
+                                                   name="LoginModel.RememberMe"
+                                                   type="checkbox"
+                                                   class="form-check-input"
+                                                   checked="@((LoginModel?.RememberMe ?? false) ? "checked" : null)" />
+                                            <label class="form-check-label text-muted" for="rememberMe">
+                                                Keep me signed in
+                                            </label>
+                                        </div>
+
+                                        <span class="text-muted small">Authorized pharmacy staff only</span>
+                                    </div>
+
+                                    <div class="d-grid">
+                                        <button type="submit" class="btn btn-primary btn-lg login-submit">
+                                            Sign in
+                                        </button>
+                                    </div>
+                                </form>
+                            </section>
+                        </div>
                     </div>
-
-                    <!-- Password -->
-                    <div class="mb-3">
-                        <label class="form-label">Password</label>
-                        <input name="LoginModel.Password" type="password"
-                               class="form-control @(Errors.ContainsKey("Password") ? "is-invalid" : "")" />
-
-                        @if (Errors.ContainsKey("Password"))
-                        {
-                            <div class="invalid-feedback d-block">
-                                @foreach (var err in Errors["Password"])
-                                {
-                                    <div>@err</div>
-                                }
-                            </div>
-                        }
-                    </div>
-
-                    <!-- Remember me -->
-                    <div class="form-check mb-3">
-                        <input id="rememberMe" name="LoginModel.RememberMe" type="checkbox" class="form-check-input" />
-                        <label class="form-check-label" for="rememberMe">
-                            Remember me
-                        </label>
-                    </div>
-
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">
-                            Sign in
-                        </button>
-                    </div>
-
                 </div>
             </div>
         </div>
     </div>
-</form>
+</div>
 
 @code {
     [CascadingParameter]
@@ -121,7 +178,7 @@
             return;
         }
 
-        var result = await Mediator.Send(new LoginCommand(LoginModel));
+        var result = await AuthService.LoginAsync(LoginModel.Email, LoginModel.Password, LoginModel.RememberMe);
 
         if (result.Succeeded)
         {

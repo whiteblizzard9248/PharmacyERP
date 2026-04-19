@@ -18,6 +18,7 @@ public static class DependencyInjection
         services.AddDbContext<PharmacyDbContext>(options =>
             options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
 
+        services.AddScoped<RowVersionInterceptor>();
         // Register IPharmacyDbContext for DI
         services.AddScoped<IPharmacyDbContext>(provider => provider.GetRequiredService<PharmacyDbContext>());
 

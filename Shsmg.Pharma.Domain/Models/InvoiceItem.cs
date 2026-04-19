@@ -2,6 +2,7 @@ namespace Shsmg.Pharma.Domain.Models;
 
 public class InvoiceItem : BaseEntity
 {
+    public Guid? InvoiceId { get; set; }
     public string? Description { get; set; }
     public string? HsnCode { get; set; }
     public string? Package { get; set; } // e.g., "10's"

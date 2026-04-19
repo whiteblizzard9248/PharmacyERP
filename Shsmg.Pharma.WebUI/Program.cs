@@ -16,12 +16,7 @@ CultureInfo.DefaultThreadCurrentUICulture = culture;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Logging.AddFilter("LuckyPennySoftware.MediatR.License", LogLevel.None);
-
-builder.Services.AddApplication(cfg =>
-{
-    cfg.LicenseKey = builder.Configuration["MediatR:LicenseKey"];
-});
+builder.Services.AddApplication();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddInfrastructure(builder.Configuration);

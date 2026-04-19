@@ -2,8 +2,9 @@
 @attribute [Authorize(Policy = "Invoice.View")]
 @rendermode InteractiveServer
 
-@inject IMediator Mediator
+@inject IInvoiceService InvoiceService
 @inject NavigationManager Navigation
+@using Shsmg.Pharma.Application.Services
 
 <PageTitle>Invoice Details</PageTitle>
 
@@ -50,7 +51,6 @@
                         <p class="mb-0">@Invoice.DoctorName</p>
                     </div>
                     <div class="col-md-6 text-end">
-                        <button class="btn btn-sm btn-outline-primary me-2" @onclick="PrintInvoice">Print invoice</button>
                         <button class="btn btn-sm btn-primary" @onclick="EditInvoice">Edit invoice</button>
                     </div>
                 </div>
@@ -112,16 +112,15 @@
     [Parameter]
     public Guid InvoiceId { get; set; }
 
-    private CreateInvoiceDto? Invoice;
+    private InvoiceDetailDto? Invoice;
     private bool IsLoading = true;
 
     protected override async Task OnInitializedAsync()
     {
-        Invoice = await Mediator.Send(new GetInvoiceByIdQuery(InvoiceId));
+        Invoice = await InvoiceService.GetInvoiceByIdAsync(InvoiceId);
         IsLoading = false;
     }
 
     private void BackToList() => Navigation.NavigateTo("/invoices");
     private void EditInvoice() => Navigation.NavigateTo($"/invoices/edit/{InvoiceId}");
-    private void PrintInvoice() => Navigation.NavigateTo($"/invoices/print/{InvoiceId}");
 }

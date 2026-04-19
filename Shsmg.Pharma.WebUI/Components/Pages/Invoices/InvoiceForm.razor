@@ -2,157 +2,204 @@
 @page "/invoices/edit/{InvoiceId:guid}"
 @attribute [Authorize(Policy = "Invoice.View")]
 @using Shsmg.Pharma.Application.Common
+@using Shsmg.Pharma.Application.Services
 @rendermode InteractiveServer
 
-@inject IMediator Mediator
+@inject IInvoiceService InvoiceService
 @inject NavigationManager Navigation
 
 <PageTitle>@(IsEdit ? "Edit Invoice" : "New Invoice")</PageTitle>
 
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="mb-1">@(IsEdit ? "Edit Invoice" : "Create Invoice")</h2>
-            <p class="text-muted mb-0">Use a single screen to add or update invoice details and line items.</p>
-        </div>
-        <button class="btn btn-outline-secondary" @onclick="BackToList">Back to invoices</button>
-    </div>
-
-    @if (IsLoading)
-    {
-        <div class="text-center py-5">
-            <div class="spinner-border text-primary" role="status"></div>
-        </div>
-    }
-    else if (NotFound)
-    {
-        <div class="alert alert-warning">Invoice not found.</div>
-    }
-    else
-    {
-        <EditForm Model="Invoice" OnValidSubmit="SaveAsync">
-            <div class="row g-3 mb-4">
-                <div class="col-md-6">
-                    <label class="form-label">Patient name</label>
-                    <InputText class="form-control" @bind-Value="Invoice.PatientName" />
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Doctor name</label>
-                    <InputText class="form-control" @bind-Value="Invoice.DoctorName" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Invoice date</label>
-                    <InputDate class="form-control" @bind-Value="Invoice.Date" />
-                </div>
-                <div class="col-md-8">
-                    <label class="form-label">Invoice number</label>
-                    <InputText class="form-control" @bind-Value="Invoice.InvoiceNumber"
-                               disabled="@(IsEdit || !string.IsNullOrWhiteSpace(Invoice.InvoiceNumber))" />
-                    <div class="form-text">Leave blank to generate a new invoice number.</div>
-                </div>
+<div class="invoice-form-shell">
+    <div class="container py-4 py-lg-5">
+        <div class="invoice-hero mb-4 mb-lg-5">
+            <div>
+                <span class="text-uppercase text-secondary fw-semibold small invoice-kicker">Invoice workspace</span>
+                <h2 class="mb-2">@(IsEdit ? "Edit Invoice" : "Create Invoice")</h2>
+                <p class="text-muted mb-0">Capture billing details, review medicines clearly, and keep totals visible while you work.</p>
             </div>
+            <button type="button" class="btn btn-outline-secondary invoice-back-btn" @onclick="BackToList">Back to invoices</button>
+        </div>
 
-            @if (ValidationErrors.Any())
-            {
-                <div class="alert alert-danger">
-                    <ul class="mb-0">
-                        @foreach (var error in ValidationErrors)
+        @if (IsLoading)
+        {
+            <div class="invoice-state-card text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+            </div>
+        }
+        else if (NotFound)
+        {
+            <div class="alert alert-warning shadow-sm border-0">Invoice not found.</div>
+        }
+        else
+        {
+            <EditForm Model="Invoice" OnValidSubmit="SaveAsync" FormName="InvoiceForm">
+                <div class="row g-4">
+                    <div class="col-12 col-xl-8">
+                        <section class="invoice-panel mb-4">
+                            <div class="invoice-panel-header">
+                                <div>
+                                    <h3 class="h5 mb-1">Invoice details</h3>
+                                    <p class="text-muted mb-0">Start with the patient, doctor, date, and invoice reference.</p>
+                                </div>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Patient name</label>
+                                    <InputText class="form-control form-control-lg" @bind-Value="Invoice.PatientName" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Doctor name</label>
+                                    <InputText class="form-control form-control-lg" @bind-Value="Invoice.DoctorName" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-semibold">Invoice date</label>
+                                    <InputDate class="form-control form-control-lg" @bind-Value="Invoice.Date" />
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label fw-semibold">Invoice number</label>
+                                    <InputText class="form-control form-control-lg"
+                                               @bind-Value="Invoice.InvoiceNumber"
+                                               disabled="@(IsEdit || !string.IsNullOrWhiteSpace(Invoice.InvoiceNumber))" />
+                                    <div class="form-text">Leave blank to generate a new invoice number automatically.</div>
+                                </div>
+                            </div>
+                        </section>
+
+                        @if (ValidationErrors.Any())
                         {
-                            <li>@error</li>
+                            <div class="alert alert-danger shadow-sm border-0 mb-4" role="alert">
+                                <div class="fw-semibold mb-2">Please review these issues before saving.</div>
+                                <ul class="mb-0 ps-3">
+                                    @foreach (var error in ValidationErrors)
+                                    {
+                                        <li>@error</li>
+                                    }
+                                </ul>
+                                @if (ValidationErrors.Any(e => e.Contains("modified elsewhere")))
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-danger mt-3" @onclick="ReloadInvoice">
+                                        Refresh latest invoice data
+                                    </button>
+                                }
+                            </div>
                         }
-                    </ul>
+
+                        <section class="invoice-panel">
+                            <div class="invoice-panel-header invoice-items-header">
+                                <div>
+                                    <h3 class="h5 mb-1">Line items</h3>
+                                    <p class="text-muted mb-0">Add medicines and charges with clear fields for quantity, rate, and GST.</p>
+                                </div>
+                                <button type="button" class="btn btn-primary" @onclick="AddItem">Add line item</button>
+                            </div>
+
+                            <div class="d-grid gap-3">
+                                @for (var index = 0; index < Invoice.Items.Count; index++)
+                                {
+                                    var item = Invoice.Items[index];
+                                    <section @key="item.Id" class="invoice-item-card">
+                                        <div class="invoice-item-topbar">
+                                            <div>
+                                                <span class="badge text-bg-light border">Item @(index + 1)</span>
+                                            </div>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemoveItem(item)">Remove</button>
+                                        </div>
+
+                                        <div class="row g-3">
+                                            <div class="col-12 col-lg-5">
+                                                <label class="form-label fw-semibold">Description</label>
+                                                <InputText class="form-control" @bind-Value="item.Description" />
+                                            </div>
+                                            <div class="col-6 col-lg-2">
+                                                <label class="form-label fw-semibold">HSN/SAC</label>
+                                                <InputText class="form-control" @bind-Value="item.HsnCode" />
+                                            </div>
+                                            <div class="col-6 col-lg-2">
+                                                <label class="form-label fw-semibold">Package</label>
+                                                <InputSelect class="form-select" @bind-Value="item.Package">
+                                                    <option value="">Select</option>
+                                                    @foreach (var pkg in Enum.GetValues<PackageType>())
+                                                    {
+                                                        <option value="@pkg">@pkg</option>
+                                                    }
+                                                </InputSelect>
+                                            </div>
+                                            <div class="col-6 col-lg-1">
+                                                <label class="form-label fw-semibold">Qty</label>
+                                                <InputNumber class="form-control" @bind-Value="item.Quantity" />
+                                            </div>
+                                            <div class="col-6 col-lg-2">
+                                                <label class="form-label fw-semibold">Rate</label>
+                                                <InputNumber class="form-control" @bind-Value="item.Rate" step="0.01" />
+                                            </div>
+
+                                            <div class="col-6 col-lg-3">
+                                                <label class="form-label fw-semibold">Batch</label>
+                                                <InputText class="form-control" @bind-Value="item.Batch" />
+                                            </div>
+                                            <div class="col-6 col-lg-3">
+                                                <label class="form-label fw-semibold">Expiry</label>
+                                                <InputText class="form-control" @bind-Value="item.ExpiryDate" />
+                                            </div>
+                                            <div class="col-6 col-lg-2">
+                                                <label class="form-label fw-semibold">GST %</label>
+                                                <InputNumber class="form-control" @bind-Value="item.GstPercentage" step="0.01" />
+                                            </div>
+                                            <div class="col-6 col-lg-4">
+                                                <div class="invoice-line-total">
+                                                    <span class="text-muted small text-uppercase fw-semibold">Line total</span>
+                                                    <div class="fs-5 fw-bold">@LineTotal(item).ToString("C")</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </section>
+                                }
+                            </div>
+                        </section>
+                    </div>
+
+                    <div class="col-12 col-xl-4">
+                        <div class="invoice-sidebar">
+                            <section class="invoice-panel invoice-summary-panel">
+                                <div class="invoice-panel-header">
+                                    <div>
+                                        <h3 class="h5 mb-1">Summary</h3>
+                                        <p class="text-muted mb-0">Review totals before saving the invoice.</p>
+                                    </div>
+                                </div>
+
+                                <dl class="invoice-summary-list mb-0">
+                                    <div>
+                                        <dt>Subtotal</dt>
+                                        <dd>@Invoice.GrossTotal.ToString("C")</dd>
+                                    </div>
+                                    <div>
+                                        <dt>GST</dt>
+                                        <dd>@Invoice.TotalGst.ToString("C")</dd>
+                                    </div>
+                                    <div class="invoice-summary-total">
+                                        <dt>Total</dt>
+                                        <dd>@Invoice.NetTotal.ToString("C")</dd>
+                                    </div>
+                                </dl>
+                            </section>
+
+                            <section class="invoice-panel invoice-actions-panel">
+                                <div class="d-grid gap-2">
+                                    <button type="submit" class="btn btn-primary btn-lg" disabled="@IsSaving">
+                                        @(IsSaving ? "Saving..." : "Save invoice")
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" @onclick="BackToList">Cancel</button>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
                 </div>
-            }
-
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>Line items</span>
-                    <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddItem">Add line item</button>
-                </div>
-                <div class="card-body p-0">
-                    <table class="table mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Description</th>
-                                <th>HSN/SAC</th>
-                                <th>Package</th>
-                                <th>Batch</th>
-                                <th>Expiry</th>
-                                <th>Qty</th>
-                                <th>Rate</th>
-                                <th>GST</th>
-                                <th>Total</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @for (var index = 0; index < Invoice.Items.Count; index++)
-                            {
-                                var item = Invoice.Items[index];
-                                <tr>
-                                    <td>
-                                        <InputText class="form-control" @bind-Value="item.Description" />
-                                    </td>
-                                    <td>
-                                        <InputText class="form-control" @bind-Value="item.HsnCode" />
-                                    </td>
-                                    <td>
-                                        <InputSelect class="form-control" @bind-Value="item.Package">
-                                            <option value="">-- Select --</option>
-                                            @foreach (var pkg in Enum.GetValues<PackageType>())
-                                            {
-                                                <option value="@pkg">@pkg</option>
-                                            }
-                                        </InputSelect>
-                                    </td>
-                                    <td>
-                                        <InputText class="form-control" @bind-Value="item.Batch" />
-                                    </td>
-                                    <td>
-                                        <InputText class="form-control" @bind-Value="item.ExpiryDate" />
-                                    </td>
-                                    <td>
-                                        <InputNumber class="form-control" @bind-Value="item.Quantity" />
-                                    </td>
-                                    <td>
-                                        <InputNumber class="form-control" @bind-Value="item.Rate" step="0.01" />
-                                    </td>
-                                    <td>
-                                        <InputNumber class="form-control" @bind-Value="item.GstPercentage" step="0.01" />
-                                    </td>
-                                    <td class="text-end">@LineTotal(item).ToString("C")</td>
-                                    <td>
-                                        <button type="button" class="btn btn-sm btn-outline-danger"
-                                                @onclick="() => RemoveItem(item)">Remove</button>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="row mb-4">
-                <div class="col-md-4 offset-md-8">
-                    <dl class="row">
-                        <dt class="col-6">Subtotal</dt>
-                        <dd class="col-6 text-end">@Invoice.GrossTotal.ToString("C")</dd>
-
-                        <dt class="col-6">GST</dt>
-                        <dd class="col-6 text-end">@Invoice.TotalGst.ToString("C")</dd>
-
-                        <dt class="col-6">Total</dt>
-                        <dd class="col-6 text-end fw-bold">@Invoice.NetTotal.ToString("C")</dd>
-                    </dl>
-                </div>
-            </div>
-
-            <div class="d-flex justify-content-end gap-2">
-                <button type="button" class="btn btn-secondary" @onclick="BackToList">Cancel</button>
-                <button type="submit" class="btn btn-primary">Save invoice</button>
-            </div>
-        </EditForm>
-    }
+            </EditForm>
+        }
+    </div>
 </div>
 
 @code {
@@ -163,27 +210,43 @@
     private bool IsLoading = true;
     private bool IsSaving = false;
     private bool NotFound;
-    private CreateInvoiceDto Invoice = new CreateInvoiceDto();
+
+    private CreateInvoiceDto Invoice = new();
     private List<string> ValidationErrors = new();
+    private InvoiceDetailDto? ExistingInvoice;
 
     protected override async Task OnInitializedAsync()
     {
         if (IsEdit)
         {
-            var existing = await Mediator.Send(new GetInvoiceByIdQuery(InvoiceId!.Value));
-            if (existing is null)
+            ExistingInvoice = await InvoiceService.GetInvoiceByIdAsync(InvoiceId!.Value);
+
+            if (ExistingInvoice is null)
             {
                 NotFound = true;
             }
             else
             {
-                Invoice = existing;
+                // 🔥 IMPORTANT: ensure RowVersion is mapped inside this method
+                Invoice = InvoiceDetailDto.ToCreateInvoiceDto(ExistingInvoice);
             }
         }
 
         if (!Invoice.Items.Any())
         {
-            Invoice.Items.Add(new InvoiceItemDto { Id = Guid.Empty });
+            Invoice.Items.Add(new InvoiceItemDto
+            {
+                Id = Guid.NewGuid(),
+                Description = string.Empty,
+                HsnCode = string.Empty,
+                Package = string.Empty,
+                Mfg = string.Empty,
+                Batch = string.Empty,
+                ExpiryDate = string.Empty,
+                Quantity = 1,
+                Rate = 0,
+                GstPercentage = 0
+            });
         }
 
         IsLoading = false;
@@ -191,47 +254,139 @@
 
     private async Task SaveAsync()
     {
-        if (IsSaving) return; // Prevent multiple clicks
+        if (IsSaving) return;
+
         IsSaving = true;
         ValidationErrors.Clear();
 
         try
         {
-            var invoiceId = await Mediator.Send(new CreateInvoiceCommand(Invoice));
-            Navigation.NavigateTo($"/invoices/{invoiceId}");
-        }
-        catch (FluentValidation.ValidationException validationException)
-        {
-            ValidationErrors = validationException.Errors
-                .Select(error => string.IsNullOrWhiteSpace(error.PropertyName)
-                    ? error.ErrorMessage
-                    : $"{error.PropertyName}: {error.ErrorMessage}")
-                .Distinct()
-                .ToList();
+            Guid resultId;
+
+            if (IsEdit)
+            {
+                if (Invoice.RowVersion == null)
+                    throw new Exception("RowVersion missing. Please reload the page.");
+
+                var updateDto = new UpdateInvoiceDto
+                {
+                    Id = InvoiceId!.Value,
+                    Date = Invoice.Date,
+                    DoctorName = Invoice.DoctorName,
+                    PatientName = Invoice.PatientName,
+                    InvoiceNumber = Invoice.InvoiceNumber,
+                    RowVersion = Invoice.RowVersion,
+
+                    Items = Invoice.Items
+                        .Select(i => new InvoiceItemDto
+                        {
+                            Id = i.Id == Guid.Empty ? Guid.NewGuid() : i.Id,
+                            Description = i.Description ?? string.Empty,
+                            HsnCode = i.HsnCode ?? string.Empty,
+                            Package = i.Package ?? string.Empty,
+                            Mfg = i.Mfg ?? string.Empty,
+                            Batch = i.Batch ?? string.Empty,
+                            ExpiryDate = i.ExpiryDate ?? string.Empty,
+                            Quantity = i.Quantity,
+                            Rate = i.Rate,
+                            GstPercentage = i.GstPercentage
+                        })
+                        .Where(i => !string.IsNullOrWhiteSpace(i.Description) || i.Quantity > 0 || i.Rate > 0)
+                        .ToList()
+                };
+
+                resultId = await InvoiceService.UpdateInvoiceAsync(updateDto);
+                await ReloadInvoice();
+            }
+            else
+            {
+                resultId = await InvoiceService.CreateInvoiceAsync(Invoice);
+                await ReloadInvoice();
+            }
+
+            Navigation.NavigateTo($"/invoices/{resultId}");
         }
         catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
         {
-            ValidationErrors.Add("The record was modified by another user. Please refresh and try again.");
+            ValidationErrors.Add("This invoice was modified by another user. Reloading latest version...");
+            await ReloadInvoice();
         }
-        catch (Exception exception)
+        catch (FluentValidation.ValidationException vex)
         {
-            ValidationErrors.Add(exception.Message);
+            ValidationErrors = vex.Errors
+                .Select(e => string.IsNullOrWhiteSpace(e.PropertyName)
+                    ? e.ErrorMessage
+                    : $"{e.PropertyName}: {e.ErrorMessage}")
+                .Distinct()
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            ValidationErrors.Add(ex.Message);
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private async Task ReloadInvoice()
+    {
+        if (!IsEdit) return;
+
+        IsLoading = true;
+        ValidationErrors.Clear();
+
+        try
+        {
+            var latest = await InvoiceService.GetInvoiceByIdAsync(InvoiceId!.Value)
+                         ?? throw new Exception("Invoice not found after reload.");
+
+            // 🔥 IMPORTANT: must preserve RowVersion again
+            Invoice = InvoiceDetailDto.ToCreateInvoiceDto(latest);
+        }
+        finally
+        {
+            IsLoading = false;
         }
     }
 
     private void AddItem()
     {
-        Invoice.Items.Add(new InvoiceItemDto());
+        Invoice.Items.Add(new InvoiceItemDto
+        {
+            Id = Guid.NewGuid(),
+            Description = string.Empty,
+            HsnCode = string.Empty,
+            Package = string.Empty,
+            Mfg = string.Empty,
+            Batch = string.Empty,
+            ExpiryDate = string.Empty,
+            Quantity = 1,
+            Rate = 0,
+            GstPercentage = 5
+        });
     }
 
     private void RemoveItem(InvoiceItemDto item)
     {
         Invoice.Items.Remove(item);
-    
-        // Ensure there is always at least one row visible
+
         if (!Invoice.Items.Any())
         {
-            Invoice.Items.Add(new InvoiceItemDto { Id = Guid.Empty });
+            Invoice.Items.Add(new InvoiceItemDto
+            {
+                Id = Guid.NewGuid(),
+                Description = string.Empty,
+                HsnCode = string.Empty,
+                Package = string.Empty,
+                Mfg = string.Empty,
+                Batch = string.Empty,
+                ExpiryDate = string.Empty,
+                Quantity = 1,
+                Rate = 0,
+                GstPercentage = 5
+            });
         }
     }
 
@@ -240,5 +395,8 @@
         return item.Quantity * item.Rate;
     }
 
-    private void BackToList() => Navigation.NavigateTo("/invoices");
+    private void BackToList()
+    {
+        Navigation.NavigateTo("/invoices");
+    }
 }

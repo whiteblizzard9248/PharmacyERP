@@ -12,7 +12,7 @@ using Shsmg.Pharma.Infra.Persistence;
 namespace Shsmg.Pharma.Infra.Migrations
 {
     [DbContext(typeof(PharmacyDbContext))]
-    [Migration("20260417085406_InitialCreate")]
+    [Migration("20260418163608_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -255,6 +255,11 @@ namespace Shsmg.Pharma.Infra.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
                     b.Property<decimal>("TaxTotal")
                         .HasPrecision(12, 2)
                         .HasColumnType("numeric(12,2)");
@@ -299,6 +304,10 @@ namespace Shsmg.Pharma.Infra.Migrations
                         .HasPrecision(5, 2)
                         .HasColumnType("numeric(5,2)");
 
+                    b.Property<string>("HsnCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
                     b.Property<Guid?>("InvoiceId")
                         .HasColumnType("uuid");
 
@@ -329,6 +338,8 @@ namespace Shsmg.Pharma.Infra.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Batch");
+
+                    b.HasIndex("HsnCode");
 
                     b.HasIndex("InvoiceId");
 

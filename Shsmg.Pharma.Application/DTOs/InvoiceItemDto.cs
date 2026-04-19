@@ -8,7 +8,7 @@ public class InvoiceItemDto
     public Guid Id { get; set; }
     public string Description { get; set; } = string.Empty;
     public string HsnCode { get; set; } = string.Empty;
-    public PackageType Package { get; set; } = PackageType.Unit; // e.g., 10's
+    public string Package { get; set; } = string.Empty;
     public string Mfg { get; set; } = string.Empty;
     public string Batch { get; set; } = string.Empty;
     public string ExpiryDate { get; set; } = string.Empty;

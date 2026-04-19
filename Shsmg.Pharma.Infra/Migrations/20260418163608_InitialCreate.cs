@@ -83,6 +83,7 @@ namespace Shsmg.Pharma.Infra.Migrations
                     GrossTotal = table.Column<decimal>(type: "numeric(12,2)", precision: 12, scale: 2, nullable: false),
                     TaxTotal = table.Column<decimal>(type: "numeric(12,2)", precision: 12, scale: 2, nullable: false),
                     NetTotal = table.Column<decimal>(type: "numeric(12,2)", precision: 12, scale: 2, nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     CreatedBy = table.Column<string>(type: "text", nullable: true),
                     LastModified = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
@@ -206,6 +207,7 @@ namespace Shsmg.Pharma.Infra.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     Description = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    HsnCode = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: true),
                     Package = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
                     Mfg = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     Batch = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
@@ -288,6 +290,11 @@ namespace Shsmg.Pharma.Infra.Migrations
                 name: "IX_InvoiceItems_Batch",
                 table: "InvoiceItems",
                 column: "Batch");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_InvoiceItems_HsnCode",
+                table: "InvoiceItems",
+                column: "HsnCode");
 
             migrationBuilder.CreateIndex(
                 name: "IX_InvoiceItems_InvoiceId",

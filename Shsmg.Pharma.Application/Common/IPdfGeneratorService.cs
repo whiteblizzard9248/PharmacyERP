@@ -5,5 +5,5 @@ namespace Shsmg.Pharma.Application.Common;
 
 public interface IPdfGeneratorService
 {
-    byte[] GeneratePdf(CreateInvoiceDto invoiceDto, CompanyDto companyDto);
+    byte[] GeneratePdf(InvoiceDetailDto invoiceDto, CompanyDto companyDto);
 }

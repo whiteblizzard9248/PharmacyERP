@@ -9,129 +9,140 @@ namespace Shsmg.Pharma.Infra.Services;
 
 public class PdfGeneratorService : IPdfGeneratorService
 {
-    public byte[] GeneratePdf(CreateInvoiceDto invoiceDto, CompanyDto companyDto)
+    public byte[] GeneratePdf(InvoiceDetailDto invoiceDto, CompanyDto companyDto)
     {
         return Document.Create(container =>
-    {
-        container.Page(page =>
         {
-            // Set to A6 for Quarter-A4 size
-            page.Size(PageSizes.A6);
-            page.Margin(0.5f, Unit.Centimetre);
-            page.PageColor(Colors.White);
-
-            // Primary blue color matching the image ink
-            var primaryBlue = "#002D62";
-            page.DefaultTextStyle(x => x.FontSize(8).FontColor(primaryBlue));
-
-            page.Header().Column(column =>
+            container.Page(page =>
             {
-                // Company Name and Invoice Number
-                column.Item().Row(row =>
+                // A4 full page
+                page.Size(PageSizes.A4);
+                page.Margin(20);
+                page.PageColor(Colors.White);
+
+                var primaryBlue = "#002D62";
+
+                page.DefaultTextStyle(x => x.FontSize(8).FontColor(primaryBlue));
+
+                // Content limited to ~45% height
+                page.Content().Height(400).Column(column =>
                 {
-                    row.RelativeItem().Column(col =>
+                    // ================= HEADER =================
+                    column.Item().Column(header =>
                     {
-                        col.Item().Text(t => t.Span(companyDto.Name).FontSize(11).Bold());
-                        col.Item().Text(t => t.Span(companyDto.Address).FontSize(7));
+                        header.Item().Row(row =>
+                        {
+                            row.RelativeItem().Column(col =>
+                            {
+                                col.Item().Text(companyDto.Name).Bold().FontSize(12);
+                                col.Item().Text(companyDto.Address).FontSize(8);
+                            });
+
+                            row.RelativeItem(1)
+                                .AlignRight()
+                                .Text($"No. {invoiceDto.InvoiceNumber}")
+                                .FontColor(Colors.Red.Medium)
+                                .Bold()
+                                .FontSize(7);
+                        });
+
+                        header.Item().AlignCenter()
+                            .Text($"DL No. {companyDto.LicenseNumber} | M. {companyDto.ContactNumber}")
+                            .FontSize(7);
+
+                        header.Item().LineHorizontal(1).LineColor(primaryBlue);
+
+                        header.Item().Row(row =>
+                        {
+                            row.RelativeItem().Text($"Patient: {invoiceDto.PatientName}");
+                            row.ConstantItem(120).AlignRight().Text($"Date: {invoiceDto.Date:dd/MM/yyyy}");
+                        });
+
+                        header.Item().Text($"Doctor: {invoiceDto.DoctorName}");
                     });
 
-                    // Red color for the Invoice Number as seen in image
-                    row.ConstantItem(50).AlignRight()
-                        .Text(t => t.Span($"No. {invoiceDto.InvoiceNumber}").FontColor(Colors.Red.Medium).Bold().FontSize(12));
-                });
-
-                column.Item().AlignCenter()
-                    .Text(t => t.Span($"DL No. {companyDto.LicenseNumber} | M. {companyDto.ContactNumber}").FontSize(7));
-
-                column.Item().PaddingTop(2).LineHorizontal(1).LineColor(primaryBlue);
-
-                // Patient and Date Row
-                column.Item().PaddingVertical(2).Row(row =>
-                {
-                    row.RelativeItem().Text(t =>
+                    // ================= TABLE =================
+                    column.Item().Table(table =>
                     {
-                        t.Span("Patient Name: ").Bold();
-                        t.Span(invoiceDto.PatientName);
-                    });
-                    row.ConstantItem(60).AlignRight().Text($"Date: {invoiceDto.Date:dd/MM/yy}");
-                });
+                        table.ColumnsDefinition(columns =>
+                        {
+                            columns.ConstantColumn(25); // Qty
+                            columns.RelativeColumn();   // Description
+                            columns.ConstantColumn(35); // HSN
+                            columns.ConstantColumn(35); // Pkg
+                            columns.ConstantColumn(40); // Mfg
+                            columns.ConstantColumn(50); // Batch
+                            columns.ConstantColumn(40); // Exp
+                            columns.ConstantColumn(30); // GST %
+                            columns.ConstantColumn(60); // Amount
+                        });
 
-                // Doctor Row
-                column.Item().PaddingBottom(2).Text(t =>
-                {
-                    t.Span("Doctor: ").Bold();
-                    t.Span(invoiceDto.DoctorName);
+                        // ===== HEADER =====
+                        table.Header(header =>
+                        {
+                            header.Cell().Element(Cell).Text("Qty");
+                            header.Cell().Element(Cell).Text("Description");
+                            header.Cell().Element(Cell).Text("HSN");
+                            header.Cell().Element(Cell).Text("Pkg");
+                            header.Cell().Element(Cell).Text("Mfg");
+                            header.Cell().Element(Cell).Text("Batch");
+                            header.Cell().Element(Cell).Text("Exp");
+                            header.Cell().Element(Cell).Text("GST%");
+                            header.Cell().Element(Cell).AlignRight().Text("Amount");
+
+                            static IContainer Cell(IContainer c) =>
+                                c.Border(0.5f).BorderColor("#002D62")
+                                 .Padding(2)
+                                 .AlignCenter()
+                                 .DefaultTextStyle(x => x.Bold().FontSize(7));
+                        });
+
+                        // ===== ROWS =====
+                        foreach (var item in invoiceDto.Items)
+                        {
+                            table.Cell().Element(Row).Text(item.Quantity.ToString());
+                            table.Cell().Element(Row).Text(item.Description);
+                            table.Cell().Element(Row).Text(item.HsnCode);
+                            table.Cell().Element(Row).Text(item.Package);
+                            table.Cell().Element(Row).Text(item.Mfg);
+                            table.Cell().Element(Row).Text(item.Batch);
+                            table.Cell().Element(Row).Text(item.ExpiryDate);
+                            table.Cell().Element(Row).Text(item.GstPercentage.ToString("0.##"));
+                            table.Cell().Element(Row).AlignRight().Text(item.LineTotal.ToString("0.00"));
+
+                            static IContainer Row(IContainer c) => c.Border(0.5f).BorderColor("#002D62").Padding(2).DefaultTextStyle(x => x.FontSize(7)).ShowEntire();
+                        }
+                    });
+
+                    // ================= FOOTER =================
+                    column.Item().Row(row =>
+                    {
+                        row.RelativeItem()
+                           .Text("Goods once sold cannot be taken back or exchanged")
+                           .FontSize(7);
+
+                        row.ConstantItem(120)
+                            .Border(0.5f)
+                            .BorderColor(primaryBlue)
+                            .Padding(5)
+                            // Use Row instead of Column to keep text on the same line
+                            .Row(footerRow =>
+                            {
+                                footerRow.RelativeItem().Text("Total").Bold();
+
+                                footerRow.RelativeItem().AlignRight()
+                                    .Text(invoiceDto.NetTotal.ToString("0.00"))
+                                    .Bold();
+                            });
+                    });
+
+                    column.Item().PaddingTop(20).Row(row =>
+                    {
+                        row.RelativeItem().Text("Customer Signature").FontSize(7);
+                        row.RelativeItem().AlignRight().Text("Q.P. Signature").FontSize(7);
+                    });
                 });
             });
-
-            page.Content().Table(table =>
-            {
-                table.ColumnsDefinition(columns =>
-                {
-                    columns.ConstantColumn(20); // Qty
-                    columns.RelativeColumn();   // Description
-                    columns.ConstantColumn(25); // Pkg
-                    columns.ConstantColumn(25); // Mfg
-                    columns.ConstantColumn(30); // Batch
-                    columns.ConstantColumn(30); // Exp. Dt
-                    columns.ConstantColumn(40); // Amount
-                });
-
-                table.Header(header =>
-                {
-                    header.Cell().Element(CellStyle).Text("Qty.");
-                    header.Cell().Element(CellStyle).Text("Description");
-                    header.Cell().Element(CellStyle).Text("Pkg.");
-                    header.Cell().Element(CellStyle).Text("Mfg.");
-                    header.Cell().Element(CellStyle).Text("Batch");
-                    header.Cell().Element(CellStyle).Text("Exp. Dt.");
-                    header.Cell().Element(CellStyle).AlignRight().Text("Amount");
-
-                    static IContainer CellStyle(IContainer container) =>
-                        container.DefaultTextStyle(x => x.Bold().FontSize(7))
-                                 .PaddingVertical(2).Border(1).BorderColor("#002D62").AlignCenter();
-                });
-
-                foreach (var item in invoiceDto.Items)
-                {
-                    table.Cell().Element(RowStyle).Text(item.Quantity.ToString());
-                    table.Cell().Element(RowStyle).Text(item.Description);
-                    table.Cell().Element(RowStyle).Text(item.Package.ToString());
-                    table.Cell().Element(RowStyle).Text(item.Mfg);
-                    table.Cell().Element(RowStyle).Text(item.Batch);
-                    table.Cell().Element(RowStyle).Text(item.ExpiryDate);
-                    table.Cell().Element(RowStyle).AlignRight().Text(item.LineTotal.ToString("N2"));
-
-                    static IContainer RowStyle(IContainer container) =>
-                        container.Border(1).BorderColor("#002D62").PaddingHorizontal(2).PaddingVertical(1).DefaultTextStyle(x => x.FontSize(7));
-                }
-            });
-
-            page.Footer().PaddingTop(5).Column(column =>
-            {
-                column.Item().Row(row =>
-                {
-                    row.RelativeItem().Column(c =>
-                    {
-                        c.Item().Text(t => t.Span("Goods once sold cannot be taken back or exchanged").FontSize(6));
-                    });
-
-                    // Total Box
-                    row.ConstantItem(80).Border(1).BorderColor(primaryBlue).Padding(2).Row(r =>
-                    {
-                        r.RelativeItem().Text(t => t.Span("Total").Bold().FontSize(10));
-                        r.RelativeItem().AlignRight().Text(t => t.Span(invoiceDto.NetTotal.ToString("N2")).Bold().FontSize(10));
-                    });
-                });
-
-                // Signature Lines
-                column.Item().PaddingTop(15).Row(row =>
-                {
-                    row.RelativeItem().Text(t => t.Span("Customer Signature").FontSize(6).Underline());
-                    row.RelativeItem().AlignRight().Text(t => t.Span("Q.p. Signature").FontSize(6).Underline());
-                });
-            });
-        });
-    }).GeneratePdf();
+        }).GeneratePdf();
     }
 }

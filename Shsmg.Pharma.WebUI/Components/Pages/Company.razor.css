@@ -1,0 +1,85 @@
+.company-shell {
+    min-height: calc(100vh - 1.1rem);
+    background:
+        radial-gradient(circle at top left, rgba(13, 110, 253, 0.12), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(22, 163, 74, 0.12), transparent 30%),
+        linear-gradient(180deg, #f7faff 0%, #f9fbff 100%);
+}
+
+.company-hero {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.company-kicker {
+    letter-spacing: 0.12em;
+}
+
+.company-panel,
+.company-sidecard,
+.company-state-card {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 1.5rem;
+    background-color: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 1rem 2.5rem rgba(15, 23, 42, 0.06);
+    backdrop-filter: blur(8px);
+}
+
+.company-panel,
+.company-sidecard {
+    padding: 1.5rem;
+}
+
+.company-sidecard {
+    position: sticky;
+    top: 1.5rem;
+}
+
+.company-panel-header {
+    margin-bottom: 1.5rem;
+}
+
+.company-panel .form-control {
+    border: 1px solid #d7dfeb;
+    border-radius: 0.9rem;
+    background-color: #fbfdff;
+}
+
+.company-panel .form-control:focus {
+    border-color: #76a9fa;
+    background-color: #fff;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.12);
+}
+
+.company-address {
+    min-height: 8rem;
+}
+
+.company-readonly-field {
+    display: grid;
+    gap: 0.5rem;
+    padding: 1rem;
+    height: 100%;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 1rem;
+    background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
+}
+
+@media (max-width: 1199.98px) {
+    .company-sidecard {
+        position: static;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .company-hero {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .company-back {
+        width: 100%;
+    }
+}

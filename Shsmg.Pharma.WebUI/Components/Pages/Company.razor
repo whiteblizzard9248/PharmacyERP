@@ -1,26 +1,28 @@
 @page "/company"
 @attribute [Authorize(Policy = "Company.View")]
 
-@inject IMediator Mediator
+@inject ICompanyService CompanyService
 @inject NavigationManager Navigation
 @inject Shsmg.Pharma.WebUI.Services.PermissionService PermissionService
 @rendermode InteractiveServer
+@using Shsmg.Pharma.Application.Services
 
 <PageTitle>Store Profile</PageTitle>
 
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="mb-1">Store Profile</h2>
-            <p class="text-muted mb-0">Maintain the medical store profile used for invoice billing and receipt
-                generation.</p>
+<div class="company-shell">
+    <div class="container py-4 py-lg-5">
+        <div class="company-hero mb-4">
+            <div>
+                <span class="text-uppercase text-secondary fw-semibold small company-kicker">Business profile</span>
+                <h2 class="mb-2">Store Profile</h2>
+                <p class="text-muted mb-0">Maintain the medical store details used on invoices, receipts, and billing records.</p>
             </div>
-            <button class="btn btn-outline-secondary" @onclick="BackToHome">Home</button>
+            <button type="button" class="btn btn-outline-secondary company-back" @onclick="BackToHome">Home</button>
         </div>
 
         @if (IsLoading)
         {
-            <div class="text-center py-5">
+            <div class="company-state-card text-center py-5">
                 <div class="spinner-border text-primary" role="status"></div>
             </div>
         }
@@ -29,66 +31,104 @@
             @if (CanEditCompany)
             {
                 <EditForm Model="StoreProfile" OnValidSubmit="SaveAsync">
-                    @if (ValidationErrors.Any())
-                    {
-                        <div class="alert alert-danger">
-                            <ul class="mb-0">
-                                @foreach (var error in ValidationErrors)
-                                {
-                                    <li>@error</li>
-                                }
-                            </ul>
-                        </div>
-                    }
+                    <div class="row g-4">
+                        <div class="col-12 col-xl-8">
+                            @if (ValidationErrors.Any())
+                            {
+                                <div class="alert alert-danger shadow-sm border-0 mb-4" role="alert">
+                                    <div class="fw-semibold mb-2">Please review these issues before saving.</div>
+                                    <ul class="mb-0 ps-3">
+                                        @foreach (var error in ValidationErrors)
+                                        {
+                                            <li>@error</li>
+                                        }
+                                    </ul>
+                                </div>
+                            }
 
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-6">
-                            <label class="form-label">Store name</label>
-                            <InputText class="form-control" @bind-Value="StoreProfile.Name" />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Contact number</label>
-                            <InputText class="form-control" @bind-Value="StoreProfile.ContactNumber" />
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Address</label>
-                            <InputTextArea class="form-control" rows="4" @bind-Value="StoreProfile.Address" />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">License number</label>
-                            <InputText class="form-control" @bind-Value="StoreProfile.LicenseNumber" />
-                        </div>
-                    </div>
+                            <section class="company-panel">
+                                <div class="company-panel-header">
+                                    <div>
+                                        <h3 class="h5 mb-1">Store details</h3>
+                                        <p class="text-muted mb-0">Keep these details accurate for printed and digital billing documents.</p>
+                                    </div>
+                                </div>
 
-                    <div class="d-flex justify-content-end gap-2">
-                        <button type="button" class="btn btn-secondary" @onclick="BackToHome">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Save profile</button>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Store name</label>
+                                        <InputText class="form-control form-control-lg" @bind-Value="StoreProfile.Name" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Contact number</label>
+                                        <InputText class="form-control form-control-lg" @bind-Value="StoreProfile.ContactNumber" />
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label fw-semibold">Address</label>
+                                        <InputTextArea class="form-control company-address" rows="4" @bind-Value="StoreProfile.Address" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">License number</label>
+                                        <InputText class="form-control form-control-lg" @bind-Value="StoreProfile.LicenseNumber" />
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+
+                        <div class="col-12 col-xl-4">
+                            <aside class="company-sidecard">
+                                <h3 class="h5 mb-3">Profile actions</h3>
+                                <p class="text-muted mb-4">Save once your pharmacy information is up to date.</p>
+                                <div class="d-grid gap-2">
+                                    <button type="submit" class="btn btn-primary btn-lg">Save profile</button>
+                                    <button type="button" class="btn btn-outline-secondary" @onclick="BackToHome">Cancel</button>
+                                </div>
+                            </aside>
+                        </div>
                     </div>
                 </EditForm>
             }
             else
             {
-                <div class="row g-3 mb-4">
-                    <div class="col-md-6">
-                        <label class="form-label">Store name</label>
-                        <p class="form-control-plaintext">@StoreProfile.Name</p>
+                <section class="company-panel company-readonly-panel">
+                    <div class="company-panel-header">
+                        <div>
+                            <h3 class="h5 mb-1">Store details</h3>
+                            <p class="text-muted mb-0">View the profile currently used across your billing screens.</p>
+                        </div>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Contact number</label>
-                        <p class="form-control-plaintext">@StoreProfile.ContactNumber</p>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="company-readonly-field">
+                                <span class="text-muted small text-uppercase fw-semibold">Store name</span>
+                                <div>@StoreProfile.Name</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="company-readonly-field">
+                                <span class="text-muted small text-uppercase fw-semibold">Contact number</span>
+                                <div>@StoreProfile.ContactNumber</div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="company-readonly-field">
+                                <span class="text-muted small text-uppercase fw-semibold">Address</span>
+                                <div>@StoreProfile.Address</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="company-readonly-field">
+                                <span class="text-muted small text-uppercase fw-semibold">License number</span>
+                                <div>@StoreProfile.LicenseNumber</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-12">
-                        <label class="form-label">Address</label>
-                        <p class="form-control-plaintext">@StoreProfile.Address</p>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">License number</label>
-                        <p class="form-control-plaintext">@StoreProfile.LicenseNumber</p>
-                    </div>
-                </div>
+                </section>
             }
         }
     </div>
+</div>
 
 @code {
     private CompanyDto StoreProfile = new();
@@ -98,7 +138,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var profile = await Mediator.Send(new GetCompanyQuery());
+        var profile = await CompanyService.GetCompanyAsync();
         StoreProfile = profile ?? new CompanyDto();
         CanEditCompany = await PermissionService.HasPermissionAsync("Company.Edit");
         IsLoading = false;
@@ -110,7 +150,7 @@
 
         try
         {
-            await Mediator.Send(new CreateCompanyCommand(StoreProfile));
+            await CompanyService.CreateOrUpdateCompanyAsync(StoreProfile);
             Navigation.NavigateTo("/company", true);
         }
         catch (FluentValidation.ValidationException validationException)

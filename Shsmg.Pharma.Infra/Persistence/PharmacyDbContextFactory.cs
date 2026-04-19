@@ -20,8 +20,9 @@ public class PharmacyDbContextFactory : IDesignTimeDbContextFactory<PharmacyDbCo
         var connectionString = config.GetConnectionString("DefaultConnection");
 
         var optionsBuilder = new DbContextOptionsBuilder<PharmacyDbContext>();
-        optionsBuilder.UseNpgsql(connectionString);
+        var rowVersionInterceptor = new RowVersionInterceptor();
+        optionsBuilder.UseNpgsql(connectionString).AddInterceptors(rowVersionInterceptor);
 
-        return new PharmacyDbContext(optionsBuilder.Options);
+        return new PharmacyDbContext(optionsBuilder.Options, rowVersionInterceptor);
     }
 }

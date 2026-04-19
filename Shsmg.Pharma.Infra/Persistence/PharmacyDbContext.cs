@@ -6,11 +6,16 @@ using Shsmg.Pharma.Application.Common;
 
 namespace Shsmg.Pharma.Infra.Persistence;
 
-public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options) : IdentityDbContext<AppUser>(options), IPharmacyDbContext
+public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options, RowVersionInterceptor rowVersionInterceptor) : IdentityDbContext<AppUser>(options), IPharmacyDbContext
 {
     public DbSet<Company> Companies { get; set; }
     public DbSet<Invoice> Invoices { get; set; }
     public DbSet<InvoiceItem> InvoiceItems { get; set; }
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        optionsBuilder.AddInterceptors(rowVersionInterceptor);
+    }
+
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -25,9 +30,13 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options) : Id
             entity.Property(e => e.ContactNumber).IsRequired().HasMaxLength(20);
             entity.Property(e => e.Address).HasColumnType("text");
 
+            entity.Property(e => e.LicenseKey).HasMaxLength(500);
+            entity.Property(e => e.HardwareId).HasMaxLength(200);
+
             entity.HasIndex(e => e.Name);
             entity.HasIndex(e => e.ContactNumber);
             entity.HasIndex(e => e.LicenseNumber).IsUnique();
+            entity.HasIndex(e => e.HardwareId);
 
             // Ensure soft delete is always active
             entity.HasQueryFilter(e => !e.IsDeleted);
@@ -46,6 +55,7 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options) : Id
             entity.Property(e => e.InvoiceNumber).IsRequired().HasMaxLength(50);
             entity.Property(e => e.PatientName).IsRequired().HasMaxLength(150);
             entity.Property(e => e.DoctorName).IsRequired().HasMaxLength(150);
+            entity.Property(e => e.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
 
             entity.HasIndex(e => e.InvoiceNumber).IsUnique();
             entity.HasIndex(e => e.InvoiceDate);
@@ -57,7 +67,7 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options) : Id
             // Relationship
             entity.HasMany(e => e.Items)
                   .WithOne()
-                  .HasForeignKey("InvoiceId") // Shadow property
+                  .HasForeignKey(e => e.InvoiceId)
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -87,32 +97,6 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options) : Id
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        foreach (var entry in ChangeTracker.Entries<BaseEntity>())
-        {
-            switch (entry.State)
-            {
-                case EntityState.Added:
-                    entry.Entity.CreatedAt = DateTime.UtcNow;
-                    break;
-                case EntityState.Modified:
-                    entry.Entity.LastModified = DateTime.UtcNow;
-                    break;
-                case EntityState.Deleted:
-                    // Only intercept if it's not already deleted
-                    if (entry.Entity.IsDeleted)
-                    {
-                        // If already soft-deleted, just leave it alone or detach it
-                        entry.State = EntityState.Unchanged;
-                    }
-                    else
-                    {
-                        entry.State = EntityState.Modified;
-                        entry.Entity.IsDeleted = true;
-                        entry.Entity.LastModified = DateTime.UtcNow;
-                    }
-                    break;
-            }
-        }
         return await base.SaveChangesAsync(cancellationToken);
     }
 }

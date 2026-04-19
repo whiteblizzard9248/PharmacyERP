@@ -1,25 +1,18 @@
 using FluentValidation;
-using MediatR;
 using Microsoft.Extensions.DependencyInjection;
-using Shsmg.Pharma.Application.Behaviors;
+using Shsmg.Pharma.Application.Services;
 
 namespace Shsmg.Pharma.Application;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddApplication(this IServiceCollection services, Action<MediatRServiceConfiguration>? configure = null)
+    public static IServiceCollection AddApplication(this IServiceCollection services)
     {
-        services.AddMediatR(cfg =>
-        {
-            cfg.RegisterServicesFromAssembly(typeof(DependencyInjection).Assembly);
-            configure?.Invoke(cfg);
-        });
-
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
-
-        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
-        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(RequestLoggingBehavior<,>));
-
+        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<ICompanyService, CompanyService>();
+        services.AddScoped<IInvoiceService, InvoiceService>();
+        services.AddScoped<Services.IUserService, UserService>();
         return services;
     }
 }

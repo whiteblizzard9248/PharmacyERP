@@ -1,8 +1,14 @@
 ﻿@using Microsoft.AspNetCore.Components.Authorization
 
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">Shsmg.Pharma.WebUI</a>
+<div class="top-row navbar navbar-dark">
+    <div class="container-fluid nav-brand-wrap">
+        <a class="navbar-brand" href="">
+            <span class="nav-brand-mark">Rx</span>
+            <span class="nav-brand-copy">
+                <span class="nav-brand-title">Pharmacy ERP</span>
+                <span class="nav-brand-subtitle">Operations dashboard</span>
+            </span>
+        </a>
     </div>
 </div>
 
@@ -10,6 +16,7 @@
 
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
     <nav class="nav flex-column">
+        <div class="nav-section-label px-3">General</div>
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
                 <span class="bi bi-house-door-fill" aria-hidden="true"></span> Home
@@ -18,6 +25,7 @@
 
         <AuthorizeView>
             <Authorized Context="outerAuth">
+                <div class="nav-section-label px-3">Workspace</div>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="invoices">
                         <span class="bi bi-receipt" aria-hidden="true"></span> Invoices
@@ -40,6 +48,7 @@
                     </Authorized>
                 </AuthorizeView>
 
+                <div class="nav-section-label px-3">Account</div>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="logout">
                         <span class="bi bi-box-arrow-right" aria-hidden="true"></span> Logout
@@ -56,4 +65,3 @@
         </AuthorizeView>
     </nav>
 </div>
-

@@ -3,70 +3,106 @@
 @attribute [Authorize(Policy = "User.Manage")]
 
 @using Shsmg.Pharma.Application.Common
-@inject IMediator Mediator
+@using Shsmg.Pharma.Application.Services
+@inject Shsmg.Pharma.Application.Services.IUserService UserService
 @inject NavigationManager Navigation
 @inject Shsmg.Pharma.WebUI.Services.PermissionService PermissionService
 @rendermode InteractiveServer
 
 <PageTitle>@(IsEdit ? "Edit User" : "New User")</PageTitle>
 
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="mb-0">@(IsEdit ? "Edit User" : "New User")</h2>
-            <p class="text-muted mb-0">@(IsEdit ? "Update user details and roles." : "Create a new user account.")</p>
+<div class="user-form-shell">
+    <div class="container py-4 py-lg-5">
+        <div class="user-form-hero mb-4">
+            <div>
+                <span class="text-uppercase text-secondary fw-semibold small user-form-kicker">User access</span>
+                <h2 class="mb-2">@(IsEdit ? "Edit User" : "New User")</h2>
+                <p class="text-muted mb-0">@(IsEdit ? "Update access and roles for an existing team member." : "Create a new user account and assign the right access level.")</p>
+            </div>
+            <button type="button" class="btn btn-outline-secondary user-form-back" @onclick="BackToUsers">Back</button>
         </div>
-        <button class="btn btn-secondary" @onclick="BackToUsers">Back</button>
-    </div>
 
-    <EditForm Model="UserModel" OnValidSubmit="SaveAsync">
-        @if (ValidationErrors.Any())
-        {
-            <div class="alert alert-danger">
-                <ul class="mb-0">
-                    @foreach (var error in ValidationErrors)
+        <EditForm Model="UserModel" OnValidSubmit="SaveAsync">
+            <div class="row g-4">
+                <div class="col-12 col-xl-8">
+                    @if (ValidationErrors.Any())
                     {
-                        <li>@error</li>
-                    }
-                </ul>
-            </div>
-        }
-
-        <div class="row g-3 mb-4">
-            <div class="col-md-6">
-                <label class="form-label">Email</label>
-                <InputText class="form-control" @bind-Value="UserModel.Email" disabled="@IsEdit" />
-            </div>
-            @if (!IsEdit)
-            {
-                <div class="col-md-6">
-                    <label class="form-label">Password</label>
-                    <InputText type="password" class="form-control" @bind-Value="UserModel.Password" />
-                </div>
-            }
-            <div class="col-12">
-                <label class="form-label">Roles</label>
-                <div class="row">
-                    @foreach (var role in AvailableRoles)
-                    {
-                        <div class="col-md-4">
-                            <div class="form-check">
-                                <InputCheckbox class="form-check-input" id="@role" Value="GetRoleValue(role)"
-                                               ValueChanged="@(v => SetRoleValue(role, v))"
-                                               ValueExpression="() => UserModel.SelectedRoles[role]" />
-                                <label class="form-check-label" for="@role">@role</label>
-                            </div>
+                        <div class="alert alert-danger shadow-sm border-0 mb-4" role="alert">
+                            <div class="fw-semibold mb-2">Please fix these issues before saving.</div>
+                            <ul class="mb-0 ps-3">
+                                @foreach (var error in ValidationErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
                         </div>
                     }
+
+                    <section class="user-form-panel">
+                        <div class="user-form-panel-header">
+                            <div>
+                                <h3 class="h5 mb-1">Account details</h3>
+                                <p class="text-muted mb-0">Set the login email and, for new users, an initial password.</p>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Email</label>
+                                <InputText class="form-control form-control-lg" @bind-Value="UserModel.Email" disabled="@IsEdit" />
+                            </div>
+                            @if (!IsEdit)
+                            {
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Password</label>
+                                    <InputText type="password" class="form-control form-control-lg" @bind-Value="UserModel.Password" />
+                                </div>
+                            }
+                        </div>
+                    </section>
+
+                    <section class="user-form-panel mt-4">
+                        <div class="user-form-panel-header">
+                            <div>
+                                <h3 class="h5 mb-1">Roles</h3>
+                                <p class="text-muted mb-0">Choose the permissions this user should receive.</p>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            @foreach (var role in AvailableRoles)
+                            {
+                                <div class="col-md-6 col-xl-4">
+                                    <label class="user-role-card" for="@role">
+                                        <div class="form-check m-0">
+                                            <InputCheckbox class="form-check-input"
+                                                           id="@role"
+                                                           Value="GetRoleValue(role)"
+                                                           ValueChanged="@(v => SetRoleValue(role, v))"
+                                                           ValueExpression="() => UserModel.SelectedRoles[role]" />
+                                            <span class="form-check-label fw-semibold">@role</span>
+                                        </div>
+                                        <span class="text-muted small">Enable access for this responsibility area.</span>
+                                    </label>
+                                </div>
+                            }
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-12 col-xl-4">
+                    <aside class="user-form-sidecard">
+                        <h3 class="h5 mb-3">Summary</h3>
+                        <p class="text-muted mb-4">Keep account setup simple and assign only the roles this team member needs.</p>
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">@(IsEdit ? "Update User" : "Create User")</button>
+                            <button type="button" class="btn btn-outline-secondary" @onclick="BackToUsers">Cancel</button>
+                        </div>
+                    </aside>
                 </div>
             </div>
-        </div>
-
-        <div class="d-flex justify-content-end gap-2">
-            <button type="button" class="btn btn-secondary" @onclick="BackToUsers">Cancel</button>
-            <button type="submit" class="btn btn-primary">@(IsEdit ? "Update User" : "Create User")</button>
-        </div>
-    </EditForm>
+        </EditForm>
+    </div>
 </div>
 
 @code {
@@ -85,7 +121,7 @@
         }
         if (IsEdit && !string.IsNullOrEmpty(UserId))
         {
-            var user = await Mediator.Send(new GetUserByIdQuery(UserId));
+            var user = await UserService.GetUserByIdAsync(UserId);
             if (user != null)
             {
                 UserModel = new UserFormModel
@@ -117,14 +153,14 @@
 
         try
         {
-            var selectedRoles = UserModel.SelectedRoles.Where(kv => kv.Value).Select(kv => kv.Key).ToList();
+            var selectedRoles = UserModel.SelectedRoles.Where(kv => kv.Value).Select(kv => kv.Key).ToArray();
             if (IsEdit)
             {
-                await Mediator.Send(new UpdateUserCommand(UserId!, UserModel.Email, selectedRoles));
+                await UserService.UpdateUserAsync(UserId!, UserModel.Email, selectedRoles);
             }
             else
             {
-                await Mediator.Send(new CreateUserCommand(UserModel.Email, UserModel.Password, selectedRoles));
+                await UserService.CreateUserAsync(UserModel.Email, UserModel.Password, selectedRoles);
             }
             Navigation.NavigateTo("/users");
         }
