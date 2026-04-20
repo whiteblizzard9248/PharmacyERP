@@ -31,6 +31,7 @@ public class UpdateInvoiceDto
             Items = [.. this.Items.Select(dtoItem => new InvoiceItem
             {
                 Id = dtoItem.Id,
+                    InventoryItemId = dtoItem.InventoryItemId,
                     Description = dtoItem.Description,
                     HsnCode = dtoItem.HsnCode,
                     Quantity = dtoItem.Quantity,

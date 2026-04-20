@@ -11,6 +11,7 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options, RowV
     public DbSet<Company> Companies { get; set; }
     public DbSet<Invoice> Invoices { get; set; }
     public DbSet<InvoiceItem> InvoiceItems { get; set; }
+    public DbSet<InventoryItem> InventoryItems { get; set; }
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.AddInterceptors(rowVersionInterceptor);
@@ -90,6 +91,26 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options, RowV
             // Financials
             entity.Property(e => e.Rate).HasPrecision(12, 2);
             entity.Property(e => e.GstPercentage).HasPrecision(5, 2);
+
+            entity.HasQueryFilter(e => !e.IsDeleted);
+        });
+
+        builder.Entity<InventoryItem>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Description).IsRequired().HasMaxLength(1000);
+            entity.Property(e => e.HsnCode).HasMaxLength(10);
+            entity.Property(e => e.Package).HasMaxLength(50);
+            entity.Property(e => e.Mfg).HasMaxLength(100);
+            entity.Property(e => e.Batch).HasMaxLength(50);
+            entity.Property(e => e.ExpiryDate).HasMaxLength(20);
+            entity.Property(e => e.Rate).HasPrecision(12, 2);
+            entity.Property(e => e.GstPercentage).HasPrecision(5, 2);
+
+            entity.HasIndex(e => e.Description);
+            entity.HasIndex(e => e.Batch);
+            entity.HasIndex(e => e.HsnCode);
 
             entity.HasQueryFilter(e => !e.IsDeleted);
         });

@@ -1,0 +1,207 @@
+@page "/inventory/new"
+@page "/inventory/edit/{InventoryItemId:guid}"
+@attribute [Authorize(Policy = "Inventory.View")]
+@rendermode InteractiveServer
+@using Shsmg.Pharma.Application.Common
+@using Shsmg.Pharma.Application.DTOs
+@using Shsmg.Pharma.Application.Services
+
+@inject IInventoryService InventoryService
+@inject NavigationManager Navigation
+@inject Shsmg.Pharma.WebUI.Services.PermissionService PermissionService
+
+<PageTitle>@(IsEdit ? "Edit Inventory Item" : "New Inventory Item")</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">@(IsEdit ? "Edit Inventory Item" : "Add Inventory Item")</h2>
+            <p class="text-muted mb-0">Use the same core medicine fields as invoice items so invoice search and autofill can reuse this record later.</p>
+        </div>
+        <button type="button" class="btn btn-outline-secondary" @onclick="BackToList">Back to inventory</button>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
+    }
+    else if (NotFound)
+    {
+        <div class="alert alert-warning">Inventory item not found.</div>
+    }
+    else if (!CanSave)
+    {
+        <div class="alert alert-warning">You do not have permission to modify inventory items.</div>
+    }
+    else
+    {
+        <EditForm Model="Item" OnValidSubmit="SaveAsync" FormName="InventoryForm">
+            <div class="row g-4">
+                <div class="col-12 col-xl-8">
+                    @if (ValidationErrors.Any())
+                    {
+                        <div class="alert alert-danger" role="alert">
+                            <div class="fw-semibold mb-2">Please review these issues before saving.</div>
+                            <ul class="mb-0 ps-3">
+                                @foreach (var error in ValidationErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    <div class="card shadow-sm border-0">
+                        <div class="card-body p-4">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold">Description</label>
+                                    <InputText class="form-control form-control-lg" @bind-Value="Item.Description" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-semibold">HSN/SAC</label>
+                                    <InputText class="form-control" @bind-Value="Item.HsnCode" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-semibold">Package</label>
+                                    <InputSelect class="form-select" @bind-Value="Item.Package">
+                                        <option value="">Select</option>
+                                        @foreach (var pkg in Enum.GetValues<PackageType>())
+                                        {
+                                            <option value="@pkg">@pkg</option>
+                                        }
+                                    </InputSelect>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-semibold">Manufacturer</label>
+                                    <InputText class="form-control" @bind-Value="Item.Mfg" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Batch</label>
+                                    <InputText class="form-control" @bind-Value="Item.Batch" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Expiry</label>
+                                    <InputText class="form-control" @bind-Value="Item.ExpiryDate" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-semibold">Stock quantity</label>
+                                    <InputNumber class="form-control" @bind-Value="Item.QuantityInStock" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-semibold">Reorder level</label>
+                                    <InputNumber class="form-control" @bind-Value="Item.ReorderLevel" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-semibold">Selling rate</label>
+                                    <InputNumber class="form-control" @bind-Value="Item.Rate" step="0.01" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-semibold">GST %</label>
+                                    <InputNumber class="form-control" @bind-Value="Item.GstPercentage" step="0.01" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-xl-4">
+                    <div class="card shadow-sm border-0">
+                        <div class="card-body p-4">
+                            <h3 class="h5 mb-3">Quick summary</h3>
+                            <dl class="mb-0">
+                                <dt class="text-muted">Stock status</dt>
+                                <dd class="mb-3">@StockStatus</dd>
+                                <dt class="text-muted">Invoice autofill</dt>
+                                <dd class="mb-0 text-muted">Description, HSN, package, manufacturer, batch, expiry, rate, and GST are stored here for later invoice item search.</dd>
+                            </dl>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 mt-3">
+                        <button type="submit" class="btn btn-primary btn-lg" disabled="@IsSaving">
+                            @(IsSaving ? "Saving..." : "Save inventory item")
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" @onclick="BackToList">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid? InventoryItemId { get; set; }
+
+    private bool IsEdit => InventoryItemId.HasValue;
+    private bool IsLoading = true;
+    private bool IsSaving;
+    private bool NotFound;
+    private bool CanSave;
+    private InventoryItemDto Item = new();
+    private List<string> ValidationErrors = [];
+
+    private string StockStatus => Item.QuantityInStock <= Item.ReorderLevel ? "Low stock" : "Healthy";
+
+    protected override async Task OnInitializedAsync()
+    {
+        CanSave = IsEdit
+            ? await PermissionService.HasPermissionAsync("Inventory.Edit")
+            : await PermissionService.HasPermissionAsync("Inventory.Create");
+
+        if (IsEdit)
+        {
+            var existing = await InventoryService.GetInventoryItemByIdAsync(InventoryItemId!.Value);
+            if (existing is null)
+            {
+                NotFound = true;
+            }
+            else
+            {
+                Item = existing;
+            }
+        }
+
+        IsLoading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (IsSaving || !CanSave)
+        {
+            return;
+        }
+
+        IsSaving = true;
+        ValidationErrors.Clear();
+
+        try
+        {
+            await InventoryService.SaveInventoryItemAsync(Item);
+            BackToList();
+        }
+        catch (FluentValidation.ValidationException vex)
+        {
+            ValidationErrors = vex.Errors
+                .Select(e => string.IsNullOrWhiteSpace(e.PropertyName) ? e.ErrorMessage : $"{e.PropertyName}: {e.ErrorMessage}")
+                .Distinct()
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            ValidationErrors.Add(ex.Message);
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private void BackToList()
+    {
+        Navigation.NavigateTo("/inventory");
+    }
+}

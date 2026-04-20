@@ -6,6 +6,7 @@ public class InvoiceItemDto
 {
     // Basic Details
     public Guid Id { get; set; }
+    public Guid? InventoryItemId { get; set; }
     public string Description { get; set; } = string.Empty;
     public string HsnCode { get; set; } = string.Empty;
     public string Package { get; set; } = string.Empty;

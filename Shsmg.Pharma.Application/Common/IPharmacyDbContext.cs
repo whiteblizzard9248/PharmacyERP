@@ -8,6 +8,7 @@ public interface IPharmacyDbContext
     DbSet<Company> Companies { get; }
     DbSet<Invoice> Invoices { get; }
     DbSet<InvoiceItem> InvoiceItems { get; }
+    DbSet<InventoryItem> InventoryItems { get; }
 
     ChangeTracker ChangeTracker { get; }
 

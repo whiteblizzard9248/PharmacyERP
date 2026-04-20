@@ -6,6 +6,7 @@
 @rendermode InteractiveServer
 
 @inject IInvoiceService InvoiceService
+@inject IInventoryService InventoryService
 @inject NavigationManager Navigation
 
 <PageTitle>@(IsEdit ? "Edit Invoice" : "New Invoice")</PageTitle>
@@ -108,7 +109,43 @@
                                         </div>
 
                                         <div class="row g-3">
-                                            <div class="col-12 col-lg-5">
+                                            <div class="col-12">
+                                                <label class="form-label fw-semibold">Inventory item <span class="fw-normal text-muted">(optional)</span></label>
+                                                <input class="form-control"
+                                                       placeholder="Search inventory by item, HSN code, batch, or manufacturer"
+                                                       value="@GetInventorySearchText(item)"
+                                                       @oninput="@(async e => await OnInventorySearchChangedAsync(item, e))" />
+                                                <div class="form-text">Select an inventory item to auto-fill this line, or skip it and enter the item manually.</div>
+
+                                                @if (item.InventoryItemId.HasValue)
+                                                {
+                                                    <div class="invoice-item-selection mt-2">
+                                                        <span class="badge text-bg-light border">Linked to inventory</span>
+                                                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => ClearInventorySelection(item)">
+                                                            Clear selection
+                                                        </button>
+                                                    </div>
+                                                }
+
+                                                @if (IsInventoryLookupLoading(item))
+                                                {
+                                                    <div class="small text-muted mt-2">Searching inventory...</div>
+                                                }
+                                                else if (GetInventorySearchResults(item).Count > 0)
+                                                {
+                                                    <div class="invoice-search-results mt-2">
+                                                        @foreach (var suggestion in GetInventorySearchResults(item))
+                                                        {
+                                                            <button type="button" class="invoice-search-result" @onclick="() => ApplyInventorySelection(item, suggestion)">
+                                                                <span class="fw-semibold">@suggestion.Description</span>
+                                                                <span class="text-muted small">HSN: @suggestion.HsnCode | Batch: @suggestion.Batch | Rate: @suggestion.Rate.ToString("C")</span>
+                                                            </button>
+                                                        }
+                                                    </div>
+                                                }
+                                            </div>
+
+                                            <div class="col-12 col-lg-4">
                                                 <label class="form-label fw-semibold">Description</label>
                                                 <InputText class="form-control" @bind-Value="item.Description" />
                                             </div>
@@ -126,22 +163,25 @@
                                                     }
                                                 </InputSelect>
                                             </div>
+                                            <div class="col-12 col-lg-4">
+                                                <label class="form-label fw-semibold">Manufacturer</label>
+                                                <InputText class="form-control" @bind-Value="item.Mfg" />
+                                            </div>
                                             <div class="col-6 col-lg-1">
                                                 <label class="form-label fw-semibold">Qty</label>
                                                 <InputNumber class="form-control" @bind-Value="item.Quantity" />
                                             </div>
-                                            <div class="col-6 col-lg-2">
-                                                <label class="form-label fw-semibold">Rate</label>
-                                                <InputNumber class="form-control" @bind-Value="item.Rate" step="0.01" />
-                                            </div>
-
                                             <div class="col-6 col-lg-3">
                                                 <label class="form-label fw-semibold">Batch</label>
                                                 <InputText class="form-control" @bind-Value="item.Batch" />
                                             </div>
-                                            <div class="col-6 col-lg-3">
+                                            <div class="col-6 col-lg-2">
                                                 <label class="form-label fw-semibold">Expiry</label>
                                                 <InputText class="form-control" @bind-Value="item.ExpiryDate" />
+                                            </div>
+                                            <div class="col-6 col-lg-2">
+                                                <label class="form-label fw-semibold">Rate</label>
+                                                <InputNumber class="form-control" @bind-Value="item.Rate" step="0.01" />
                                             </div>
                                             <div class="col-6 col-lg-2">
                                                 <label class="form-label fw-semibold">GST %</label>
@@ -214,6 +254,9 @@
     private CreateInvoiceDto Invoice = new();
     private List<string> ValidationErrors = new();
     private InvoiceDetailDto? ExistingInvoice;
+    private readonly Dictionary<Guid, string> InventorySearchText = new();
+    private readonly Dictionary<Guid, List<InventoryItemDto>> InventorySearchResults = new();
+    private readonly HashSet<Guid> InventoryLookupLoading = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -249,6 +292,7 @@
             });
         }
 
+        SyncInventoryPickerState();
         IsLoading = false;
     }
 
@@ -281,6 +325,7 @@
                         .Select(i => new InvoiceItemDto
                         {
                             Id = i.Id == Guid.Empty ? Guid.NewGuid() : i.Id,
+                            InventoryItemId = i.InventoryItemId,
                             Description = i.Description ?? string.Empty,
                             HsnCode = i.HsnCode ?? string.Empty,
                             Package = i.Package ?? string.Empty,
@@ -344,6 +389,7 @@
 
             // 🔥 IMPORTANT: must preserve RowVersion again
             Invoice = InvoiceDetailDto.ToCreateInvoiceDto(latest);
+            SyncInventoryPickerState();
         }
         finally
         {
@@ -364,8 +410,10 @@
             ExpiryDate = string.Empty,
             Quantity = 1,
             Rate = 0,
-            GstPercentage = 5
+                GstPercentage = 5
         });
+
+        SyncInventoryPickerState();
     }
 
     private void RemoveItem(InvoiceItemDto item)
@@ -388,11 +436,131 @@
                 GstPercentage = 5
             });
         }
+
+        SyncInventoryPickerState();
     }
 
     private decimal LineTotal(InvoiceItemDto item)
     {
         return item.Quantity * item.Rate;
+    }
+
+    private string GetInventorySearchText(InvoiceItemDto item)
+    {
+        EnsureInventoryPickerState(item);
+        return InventorySearchText[item.Id];
+    }
+
+    private IReadOnlyList<InventoryItemDto> GetInventorySearchResults(InvoiceItemDto item)
+    {
+        EnsureInventoryPickerState(item);
+        return InventorySearchResults[item.Id];
+    }
+
+    private bool IsInventoryLookupLoading(InvoiceItemDto item)
+    {
+        return InventoryLookupLoading.Contains(item.Id);
+    }
+
+    private async Task OnInventorySearchChangedAsync(InvoiceItemDto item, ChangeEventArgs args)
+    {
+        EnsureInventoryPickerState(item);
+
+        var query = args.Value?.ToString() ?? string.Empty;
+        InventorySearchText[item.Id] = query;
+
+        var normalized = query.Trim();
+        if (normalized.Length < 2)
+        {
+            InventorySearchResults[item.Id] = [];
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        InventoryLookupLoading.Add(item.Id);
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var results = (await InventoryService.SearchInventoryItemsAsync(normalized, 8)).ToList();
+            if (InventorySearchText.TryGetValue(item.Id, out var current) && current == query)
+            {
+                InventorySearchResults[item.Id] = results;
+            }
+        }
+        finally
+        {
+            InventoryLookupLoading.Remove(item.Id);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ApplyInventorySelection(InvoiceItemDto item, InventoryItemDto selected)
+    {
+        item.InventoryItemId = selected.Id;
+        item.Description = selected.Description;
+        item.HsnCode = selected.HsnCode;
+        item.Package = selected.Package;
+        item.Mfg = selected.Mfg;
+        item.Batch = selected.Batch;
+        item.ExpiryDate = selected.ExpiryDate;
+        item.Rate = selected.Rate;
+        item.GstPercentage = selected.GstPercentage;
+
+        if (item.Quantity <= 0)
+        {
+            item.Quantity = 1;
+        }
+
+        InventorySearchText[item.Id] = $"{selected.Description} ({selected.Batch})";
+        InventorySearchResults[item.Id] = [];
+    }
+
+    private void ClearInventorySelection(InvoiceItemDto item)
+    {
+        item.InventoryItemId = null;
+        InventorySearchText[item.Id] = string.Empty;
+        InventorySearchResults[item.Id] = [];
+    }
+
+    private void SyncInventoryPickerState()
+    {
+        var activeIds = Invoice.Items.Select(i => i.Id).ToHashSet();
+
+        foreach (var removedId in InventorySearchText.Keys.Where(id => !activeIds.Contains(id)).ToList())
+        {
+            InventorySearchText.Remove(removedId);
+        }
+
+        foreach (var removedId in InventorySearchResults.Keys.Where(id => !activeIds.Contains(id)).ToList())
+        {
+            InventorySearchResults.Remove(removedId);
+        }
+
+        foreach (var removedId in InventoryLookupLoading.Where(id => !activeIds.Contains(id)).ToList())
+        {
+            InventoryLookupLoading.Remove(removedId);
+        }
+
+        foreach (var item in Invoice.Items)
+        {
+            EnsureInventoryPickerState(item);
+        }
+    }
+
+    private void EnsureInventoryPickerState(InvoiceItemDto item)
+    {
+        if (!InventorySearchText.ContainsKey(item.Id))
+        {
+            InventorySearchText[item.Id] = item.InventoryItemId.HasValue && !string.IsNullOrWhiteSpace(item.Description)
+                ? $"{item.Description} ({item.Batch})"
+                : string.Empty;
+        }
+
+        if (!InventorySearchResults.ContainsKey(item.Id))
+        {
+            InventorySearchResults[item.Id] = [];
+        }
     }
 
     private void BackToList()

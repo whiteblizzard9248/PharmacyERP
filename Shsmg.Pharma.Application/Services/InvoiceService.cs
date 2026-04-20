@@ -1,13 +1,15 @@
 using Microsoft.EntityFrameworkCore;
+using FluentValidation;
 using Shsmg.Pharma.Application.Common;
 using Shsmg.Pharma.Application.DTOs;
 using Shsmg.Pharma.Domain.Models;
 
 namespace Shsmg.Pharma.Application.Services;
 
-public sealed class InvoiceService(IPharmacyDbContext context) : IInvoiceService
+public sealed class InvoiceService(IPharmacyDbContext context, IValidator<CreateInvoiceDto> createValidator) : IInvoiceService
 {
     private readonly IPharmacyDbContext _context = context;
+    private readonly IValidator<CreateInvoiceDto> _createValidator = createValidator;
 
     public async Task<IEnumerable<InvoiceSummaryDto>> GetInvoiceSummariesAsync()
     {
@@ -44,6 +46,7 @@ public sealed class InvoiceService(IPharmacyDbContext context) : IInvoiceService
                     .Select(item => new InvoiceItemDto
                     {
                         Id = item.Id,
+                        InventoryItemId = item.InventoryItemId,
                         Description = item.Description ?? "",
                         HsnCode = item.HsnCode ?? "",
                         Package = item.Package ?? PackageType.Unit.ToString(),
@@ -62,6 +65,8 @@ public sealed class InvoiceService(IPharmacyDbContext context) : IInvoiceService
 
     public async Task<Guid> CreateInvoiceAsync(CreateInvoiceDto dto)
     {
+        await _createValidator.ValidateAndThrowAsync(dto);
+
         var invoice = new Invoice
         {
             InvoiceNumber = string.IsNullOrWhiteSpace(dto.InvoiceNumber)
@@ -79,6 +84,7 @@ public sealed class InvoiceService(IPharmacyDbContext context) : IInvoiceService
             Items = [.. dto.Items.Select(item => new InvoiceItem
             {
                 Id = Guid.NewGuid(),
+                InventoryItemId = item.InventoryItemId,
                 Description = item.Description,
                 HsnCode = item.HsnCode,
                 Package = item.Package,
@@ -101,6 +107,16 @@ public sealed class InvoiceService(IPharmacyDbContext context) : IInvoiceService
 
     public async Task<Guid> UpdateInvoiceAsync(UpdateInvoiceDto dto)
     {
+        await _createValidator.ValidateAndThrowAsync(new CreateInvoiceDto
+        {
+            InvoiceNumber = dto.InvoiceNumber,
+            PatientName = dto.PatientName,
+            DoctorName = dto.DoctorName,
+            Date = dto.Date,
+            Items = dto.Items,
+            RowVersion = dto.RowVersion
+        });
+
         var invoice = await _context.Invoices
             .Include(i => i.Items)
             .FirstOrDefaultAsync(i => i.Id == dto.Id)
@@ -154,6 +170,7 @@ public sealed class InvoiceService(IPharmacyDbContext context) : IInvoiceService
             {
                 // Just update the values. EF detects the changes automatically.
                 existing.Description = dtoItem.Description;
+                existing.InventoryItemId = dtoItem.InventoryItemId;
                 existing.HsnCode = dtoItem.HsnCode;
                 existing.Package = dtoItem.Package;
                 existing.Batch = dtoItem.Batch;
@@ -170,6 +187,7 @@ public sealed class InvoiceService(IPharmacyDbContext context) : IInvoiceService
                 var newItem = new InvoiceItem
                 {
                     Id = dtoItem.Id,
+                    InventoryItemId = dtoItem.InventoryItemId,
                     Description = dtoItem.Description,
                     HsnCode = dtoItem.HsnCode,
                     Package = dtoItem.Package,

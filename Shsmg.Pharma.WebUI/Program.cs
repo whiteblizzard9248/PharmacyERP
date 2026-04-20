@@ -10,6 +10,7 @@ using Shsmg.Pharma.Infra.Persistence;
 using Microsoft.AspNetCore.Components;
 using Shsmg.Pharma.Infra.Security;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 var culture = new CultureInfo("en-IN");
 CultureInfo.DefaultThreadCurrentCulture = culture;
@@ -52,6 +53,12 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("Invoice.Create", policy => policy.RequireClaim("Permission", Permissions.InvoiceCreate));
     options.AddPolicy("Invoice.Edit", policy => policy.RequireClaim("Permission", Permissions.InvoiceEdit));
     options.AddPolicy("Invoice.Delete", policy => policy.RequireClaim("Permission", Permissions.InvoiceDelete));
+
+    // Inventory permissions
+    options.AddPolicy("Inventory.View", policy => policy.RequireClaim("Permission", Permissions.InventoryView));
+    options.AddPolicy("Inventory.Create", policy => policy.RequireClaim("Permission", Permissions.InventoryCreate));
+    options.AddPolicy("Inventory.Edit", policy => policy.RequireClaim("Permission", Permissions.InventoryEdit));
+    options.AddPolicy("Inventory.Delete", policy => policy.RequireClaim("Permission", Permissions.InventoryDelete));
 
     // User management
     options.AddPolicy("User.Manage", policy => policy.RequireClaim("Permission", Permissions.UserManage));
@@ -134,17 +141,33 @@ static async Task SeedDefaultUserAsync(IServiceProvider serviceProvider)
     // Seed roles
     foreach (var roleName in Roles.RolePermissions.Keys)
     {
-        if (!await roleManager.RoleExistsAsync(roleName))
-        {
-            var role = new IdentityRole(roleName);
-            await roleManager.CreateAsync(role);
+        var role = await roleManager.FindByNameAsync(roleName);
 
-            // Add claims for permissions
-            var permissions = Roles.RolePermissions[roleName];
-            foreach (var permission in permissions)
-            {
-                await roleManager.AddClaimAsync(role, new System.Security.Claims.Claim("Permission", permission));
-            }
+        if (role == null)
+        {
+            role = new IdentityRole(roleName);
+            await roleManager.CreateAsync(role);
+        }
+
+        var existingClaims = await roleManager.GetClaimsAsync(role);
+        var existingPermissions = existingClaims
+            .Where(c => c.Type == "Permission")
+            .Select(c => c.Value)
+            .ToHashSet();
+
+        var desiredPermissions = Roles.RolePermissions[roleName].ToHashSet();
+
+        // Add missing permissions
+        foreach (var permission in desiredPermissions.Except(existingPermissions))
+        {
+            await roleManager.AddClaimAsync(role, new Claim("Permission", permission));
+        }
+
+        // Optional: remove stale permissions
+        foreach (var claim in existingClaims.Where(c =>
+            c.Type == "Permission" && !desiredPermissions.Contains(c.Value)))
+        {
+            await roleManager.RemoveClaimAsync(role, claim);
         }
     }
 

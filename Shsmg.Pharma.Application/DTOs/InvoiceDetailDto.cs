@@ -31,6 +31,7 @@ public class InvoiceDetailDto
             Items = [.. source.Items.Select(item => new InvoiceItemDto
             {
                 Id = item.Id,
+                InventoryItemId = item.InventoryItemId,
                 Description = item.Description,
                 HsnCode = item.HsnCode,
                 Package = item.Package,
@@ -58,6 +59,7 @@ public class InvoiceDetailDto
             Items = [.. source.Items.Select(item => new InvoiceItemDto
             {
                 Id = item.Id,
+                InventoryItemId = item.InventoryItemId,
                 Description = item.Description,
                 HsnCode = item.HsnCode,
                 Package = item.Package,

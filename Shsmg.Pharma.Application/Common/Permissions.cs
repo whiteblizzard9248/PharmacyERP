@@ -10,6 +10,11 @@ public static class Permissions
     public const string InvoiceEdit = "Invoice.Edit";
     public const string InvoiceDelete = "Invoice.Delete";
 
+    public const string InventoryView = "Inventory.View";
+    public const string InventoryCreate = "Inventory.Create";
+    public const string InventoryEdit = "Inventory.Edit";
+    public const string InventoryDelete = "Inventory.Delete";
+
     public const string UserManage = "User.Manage";
 }
 
@@ -28,6 +33,10 @@ public static class Roles
             Permissions.InvoiceCreate,
             Permissions.InvoiceEdit,
             Permissions.InvoiceDelete,
+            Permissions.InventoryView,
+            Permissions.InventoryCreate,
+            Permissions.InventoryEdit,
+            Permissions.InventoryDelete,
             Permissions.UserManage
         ],
         [Manager] = [
@@ -37,10 +46,15 @@ public static class Roles
             Permissions.InvoiceCreate,
             Permissions.InvoiceEdit,
             Permissions.InvoiceDelete,
+            Permissions.InventoryView,
+            Permissions.InventoryCreate,
+            Permissions.InventoryEdit,
+            Permissions.InventoryDelete,
             Permissions.UserManage
         ],
         [Employee] = [
             Permissions.CompanyView,
+            Permissions.InventoryView,
             Permissions.InvoiceCreate,
             Permissions.InvoiceEdit,
             Permissions.InvoiceView

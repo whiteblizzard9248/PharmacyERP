@@ -72,6 +72,34 @@
     margin-bottom: 1rem;
 }
 
+.invoice-item-selection {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.invoice-search-results {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.invoice-search-result {
+    display: grid;
+    gap: 0.15rem;
+    width: 100%;
+    padding: 0.85rem 1rem;
+    text-align: left;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 0.9rem;
+    background: #fff;
+}
+
+.invoice-search-result:hover {
+    background: #f8fbff;
+    border-color: #bfdbfe;
+}
+
 .invoice-line-total {
     display: flex;
     height: 100%;
