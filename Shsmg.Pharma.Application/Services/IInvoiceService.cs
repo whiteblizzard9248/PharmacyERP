@@ -6,6 +6,7 @@ public interface IInvoiceService
 {
     Task<IEnumerable<InvoiceSummaryDto>> GetInvoiceSummariesAsync();
     Task<InvoiceDetailDto?> GetInvoiceByIdAsync(Guid id);
+    Task<IReadOnlyList<InvoiceAuditLogDto>> GetInvoiceAuditLogsAsync(Guid invoiceId);
     Task<Guid> CreateInvoiceAsync(CreateInvoiceDto dto);
     Task<Guid> UpdateInvoiceAsync(UpdateInvoiceDto dto);
 }

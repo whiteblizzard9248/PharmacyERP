@@ -7,6 +7,7 @@ public interface IPharmacyDbContext
 {
     DbSet<Company> Companies { get; }
     DbSet<Invoice> Invoices { get; }
+    DbSet<InvoiceAuditLog> InvoiceAuditLogs { get; }
     DbSet<InvoiceItem> InvoiceItems { get; }
     DbSet<InventoryItem> InventoryItems { get; }
 

@@ -4,7 +4,9 @@
 
 @inject IInvoiceService InvoiceService
 @inject NavigationManager Navigation
+@inject PermissionService PermissionService
 @using Shsmg.Pharma.Application.Services
+@using Shsmg.Pharma.WebUI.Services
 
 <PageTitle>Invoice Details</PageTitle>
 
@@ -105,20 +107,62 @@
                 </dl>
             </div>
         </div>
+        @if (IsAdminOrManager)
+        {
+            <div class="card mt-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h3 class="h5 mb-1">Audit History</h3>
+                            <p class="text-muted mb-0">Review who changed this invoice and when.</p>
+                        </div>
+                    </div>
+
+                    @if (AuditLogs.Count == 0)
+                    {
+                        <div class="text-muted">No audit history recorded yet.</div>
+                    }
+                    else
+                    {
+                        <div class="d-grid gap-3">
+                            @foreach (var log in AuditLogs)
+                            {
+                                <div class="border rounded-4 p-3 bg-light-subtle">
+                                    <div class="d-flex justify-content-between align-items-start gap-3">
+                                        <div>
+                                            <div class="fw-semibold">@log.Action</div>
+                                            <div class="text-muted">@log.Summary</div>
+                                        </div>
+                                        <div class="text-end small text-muted">
+                                            <div>@log.PerformedAt.ToLocalTime().ToString("dd MMM yyyy, hh:mm tt")</div>
+                                            <div>@log.PerformedBy</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
     }
 </div>
 
 @code {
     [Parameter]
     public Guid InvoiceId { get; set; }
+    private bool IsAdminOrManager { get; set; }
 
     private InvoiceDetailDto? Invoice;
+    private IReadOnlyList<InvoiceAuditLogDto> AuditLogs = [];
     private bool IsLoading = true;
 
     protected override async Task OnInitializedAsync()
     {
         Invoice = await InvoiceService.GetInvoiceByIdAsync(InvoiceId);
+        AuditLogs = await InvoiceService.GetInvoiceAuditLogsAsync(InvoiceId);
         IsLoading = false;
+        IsAdminOrManager = await PermissionService.IsAdminAsync() || await PermissionService.IsManagerAsync();
     }
 
     private void BackToList() => Navigation.NavigateTo("/invoices");

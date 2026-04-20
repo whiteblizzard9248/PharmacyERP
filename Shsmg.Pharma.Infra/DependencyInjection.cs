@@ -21,6 +21,7 @@ public static class DependencyInjection
         services.AddScoped<RowVersionInterceptor>();
         // Register IPharmacyDbContext for DI
         services.AddScoped<IPharmacyDbContext>(provider => provider.GetRequiredService<PharmacyDbContext>());
+        services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
 
         // Register Identity services
         services.AddIdentityCore<AppUser>()

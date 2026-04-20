@@ -10,6 +10,7 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options, RowV
 {
     public DbSet<Company> Companies { get; set; }
     public DbSet<Invoice> Invoices { get; set; }
+    public DbSet<InvoiceAuditLog> InvoiceAuditLogs { get; set; }
     public DbSet<InvoiceItem> InvoiceItems { get; set; }
     public DbSet<InventoryItem> InventoryItems { get; set; }
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -70,6 +71,20 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options, RowV
                   .WithOne()
                   .HasForeignKey(e => e.InvoiceId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<InvoiceAuditLog>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.InvoiceNumber).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Action).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Summary).IsRequired().HasMaxLength(1000);
+            entity.Property(e => e.SnapshotJson).HasColumnType("text");
+            entity.Property(e => e.PerformedBy).IsRequired().HasMaxLength(256);
+
+            entity.HasIndex(e => e.InvoiceId);
+            entity.HasIndex(e => e.PerformedAt);
         });
 
         // 4. Invoice Items Configuration
