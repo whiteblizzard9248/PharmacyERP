@@ -24,7 +24,12 @@ public sealed class CompanyService(IPharmacyDbContext context) : ICompanyService
             Name = company.Name,
             Address = company.Address ?? string.Empty,
             LicenseNumber = company.LicenseNumber,
-            ContactNumber = company.ContactNumber
+            ContactNumber = company.ContactNumber,
+            LicenseKey = company.LicenseKey,
+            LicenseExpiry = company.LicenseExpiry,
+            HardwareId = company.HardwareId,
+            IsActivated = company.IsActivated
+
         };
     }
 
@@ -40,6 +45,10 @@ public sealed class CompanyService(IPharmacyDbContext context) : ICompanyService
             existingCompany.Address = dto.Address;
             existingCompany.LicenseNumber = dto.LicenseNumber;
             existingCompany.ContactNumber = dto.ContactNumber;
+            existingCompany.LicenseKey = dto.LicenseKey;
+            existingCompany.LicenseExpiry = dto.LicenseExpiry;
+            existingCompany.HardwareId = dto.HardwareId;
+            existingCompany.IsActivated = dto.IsActivated;
             existingCompany.LastModified = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
@@ -52,10 +61,14 @@ public sealed class CompanyService(IPharmacyDbContext context) : ICompanyService
             Address = dto.Address,
             LicenseNumber = dto.LicenseNumber,
             ContactNumber = dto.ContactNumber,
+            LicenseKey = dto.LicenseKey,
+            LicenseExpiry = dto.LicenseExpiry,
+            HardwareId = dto.HardwareId
         };
 
         _context.Companies.Add(newCompany);
         await _context.SaveChangesAsync();
+        _context.ChangeTracker.Clear();
         return newCompany.Id;
     }
 }

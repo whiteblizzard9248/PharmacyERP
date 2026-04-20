@@ -18,64 +18,79 @@
             <h2 class="mb-0">Invoices</h2>
             <p class="text-muted mb-0">Manage your billing history and open invoices for the medical store.</p>
         </div>
-        @if (CanCreateInvoice)
+        <div class="d-flex gap-2">
+            @if (SelectedInvoices.Count > 0)
+            {
+                <button class="btn btn-success" @onclick="DownloadCombinedPdf"
+                        title="Generate PDF for selected invoices (max 3)">Download Selected
+                    (@SelectedInvoices.Count)</button>
+                }
+                @if (CanCreateInvoice)
+                {
+                    <button class="btn btn-primary" @onclick="CreateInvoice">New Invoice</button>
+                }
+            </div>
+        </div>
+
+        @if (IsLoading)
         {
-            <button class="btn btn-primary" @onclick="CreateInvoice">New Invoice</button>
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+            </div>
+        }
+        else if (InvoiceSummaries?.Any() != true)
+        {
+            <div class="alert alert-info">No invoices found. Start by creating a new invoice.</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 40px;"><input type="checkbox" @onchange="ToggleSelectAll" /></th>
+                            <th>Invoice #</th>
+                            <th>Date</th>
+                            <th>Patient</th>
+                            <th>Total</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var invoice in InvoiceSummaries)
+                        {
+                            <tr>
+                                <td>
+                                    <input type="checkbox" checked="@SelectedInvoices.Contains(invoice.Id)"
+                                           @onchange="(e) => ToggleInvoiceSelection(invoice.Id, (bool)e.Value!)"
+                                           disabled="@(!SelectedInvoices.Contains(invoice.Id) && SelectedInvoices.Count >= 3)" />
+                                </td>
+                                <td>@invoice.InvoiceNumber</td>
+                                <td>@invoice.Date.ToString("dd MMM yyyy")</td>
+                                <td>@invoice.PatientName</td>
+                                <td>@invoice.NetTotal.ToString("C")</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary me-2"
+                                            @onclick="() => ViewInvoice(invoice.Id)">View</button>
+                                    @if (CanEditInvoice)
+                                    {
+                                        <button class="btn btn-sm btn-outline-secondary me-2"
+                                                @onclick="() => EditInvoice(invoice.Id)">Edit</button>
+                                    }
+                                    <button class="btn btn-sm btn-outline-success"
+                                            @onclick="() => DownloadInvoice(invoice.Id)">Download</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         }
     </div>
 
-    @if (IsLoading)
-    {
-        <div class="text-center py-5">
-            <div class="spinner-border text-primary" role="status"></div>
-        </div>
-    }
-    else if (InvoiceSummaries?.Any() != true)
-    {
-        <div class="alert alert-info">No invoices found. Start by creating a new invoice.</div>
-    }
-    else
-    {
-        <div class="table-responsive">
-            <table class="table table-hover align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Invoice #</th>
-                        <th>Date</th>
-                        <th>Patient</th>
-                        <th>Total</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var invoice in InvoiceSummaries)
-                    {
-                        <tr>
-                            <td>@invoice.InvoiceNumber</td>
-                            <td>@invoice.Date.ToString("dd MMM yyyy")</td>
-                            <td>@invoice.PatientName</td>
-                            <td>@invoice.NetTotal.ToString("C")</td>
-                            <td>
-                                <button class="btn btn-sm btn-outline-primary me-2"
-                                        @onclick="() => ViewInvoice(invoice.Id)">View</button>
-                                @if (CanEditInvoice)
-                                {
-                                    <button class="btn btn-sm btn-outline-secondary me-2"
-                                            @onclick="() => EditInvoice(invoice.Id)">Edit</button>
-                                }
-                                <button class="btn btn-sm btn-outline-success"
-                                        @onclick="() => DownloadInvoice(invoice.Id)">Download</button>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    }
-</div>
-
 @code {
     private IEnumerable<InvoiceSummaryDto>? InvoiceSummaries;
+    private HashSet<Guid> SelectedInvoices = new();
     private bool IsLoading = true;
     private bool CanCreateInvoice;
     private bool CanEditInvoice;
@@ -91,6 +106,39 @@
     private void CreateInvoice() => Navigation.NavigateTo("/invoices/new");
     private void ViewInvoice(Guid id) => Navigation.NavigateTo($"/invoices/{id}");
     private void EditInvoice(Guid id) => Navigation.NavigateTo($"/invoices/edit/{id}");
+
+    private void ToggleInvoiceSelection(Guid id, bool isChecked)
+    {
+        if (isChecked)
+        {
+            if (SelectedInvoices.Count < 3)
+            {
+                SelectedInvoices.Add(id);
+            }
+        }
+        else
+        {
+            SelectedInvoices.Remove(id);
+        }
+    }
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        bool isChecked = (bool)e.Value!;
+        if (isChecked)
+        {
+            SelectedInvoices.Clear();
+            foreach (var invoice in InvoiceSummaries!.Take(3))
+            {
+                SelectedInvoices.Add(invoice.Id);
+            }
+        }
+        else
+        {
+            SelectedInvoices.Clear();
+        }
+    }
+
     private async Task DownloadInvoice(Guid id)
     {
         var invoice = await InvoiceService.GetInvoiceByIdAsync(id);
@@ -102,4 +150,31 @@
         var base64 = Convert.ToBase64String(pdfBytes);
         await JSRuntime.InvokeVoidAsync("downloadFileFromBase64", fileName, base64);
     }
+
+    private async Task DownloadCombinedPdf()
+    {
+        if (SelectedInvoices.Count == 0) return;
+
+        var invoices = new List<InvoiceDetailDto>();
+        var company = await CompanyService.GetCompanyAsync();
+        if (company == null) return;
+
+        foreach (var id in SelectedInvoices)
+        {
+            var invoice = await InvoiceService.GetInvoiceByIdAsync(id);
+            if (invoice != null)
+            {
+                invoices.Add(invoice);
+            }
+        }
+
+        if (invoices.Count == 0) return;
+
+        byte[] pdfBytes = PdfService.GenerateCombinedPdf(invoices, company);
+        var fileName = $"Combined_Invoices_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+        var base64 = Convert.ToBase64String(pdfBytes);
+        await JSRuntime.InvokeVoidAsync("downloadFileFromBase64", fileName, base64);
+        SelectedInvoices.Clear();
+    }
+}
 }

@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Shsmg.Pharma.Application;
 using Shsmg.Pharma.WebUI.Components;
@@ -9,6 +8,8 @@ using System.Globalization;
 using Microsoft.AspNetCore.Localization;
 using Shsmg.Pharma.Infra.Persistence;
 using Microsoft.AspNetCore.Components;
+using Shsmg.Pharma.Infra.Security;
+using Microsoft.EntityFrameworkCore;
 
 var culture = new CultureInfo("en-IN");
 CultureInfo.DefaultThreadCurrentCulture = culture;
@@ -60,8 +61,40 @@ builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 
 builder.Services.AddScoped<Shsmg.Pharma.WebUI.Services.PermissionService>();
+builder.Services.AddSingleton<LicenseStatus>();
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<PharmacyDbContext>();
+    var status = app.Services.GetRequiredService<LicenseStatus>();
+
+    status.IsValid = true;
+    status.Message = string.Empty;
+
+    var company = await context.Companies.FirstOrDefaultAsync();
+    var currentHardwareId = LicenseHelper.GetHardwareId();
+
+    if (company != null)
+    {
+        if (!company.IsActivated)
+        {
+            status.IsValid = false;
+            status.Message = "License is not activated. Please update your store profile to activate the installation.";
+        }
+        else if (company.HardwareId != currentHardwareId)
+        {
+            status.IsValid = false;
+            status.Message = "Unauthorized Hardware: This installation is locked to another server.";
+        }
+        else if (company.LicenseExpiry.HasValue && company.LicenseExpiry < DateTime.UtcNow)
+        {
+            status.IsValid = false;
+            status.Message = "License Expired: Please contact Shsmg Pharma Support.";
+        }
+    }
+}
 
 app.UseRequestLocalization(new RequestLocalizationOptions
 {
@@ -118,10 +151,10 @@ static async Task SeedDefaultUserAsync(IServiceProvider serviceProvider)
     const string adminEmail = "admin@pharma.local";
     const string adminPassword = "Admin@1234";
 
-    const string managerEmail = "manager.pharma.local";
+    const string managerEmail = "manager@pharma.local";
     const string managerPassword = "Manager@1234";
 
-    const string employeeEmail = "employee.pharma.local";
+    const string employeeEmail = "employee@pharma.local";
     const string employeePassword = "Employee@1234";
 
     await CreateDefaultUser(userManager, adminEmail, adminPassword, Roles.Admin);

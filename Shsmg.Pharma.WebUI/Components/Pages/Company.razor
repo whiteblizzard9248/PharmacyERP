@@ -1,11 +1,15 @@
 @page "/company"
-@attribute [Authorize(Policy = "Company.View")]
+@using Microsoft.AspNetCore.Authorization
+@attribute [AllowAnonymous]
 
 @inject ICompanyService CompanyService
 @inject NavigationManager Navigation
 @inject Shsmg.Pharma.WebUI.Services.PermissionService PermissionService
+@inject LicenseStatus LicenseStatus
 @rendermode InteractiveServer
 @using Shsmg.Pharma.Application.Services
+@using System.Globalization
+@using Shsmg.Pharma.Infra.Security
 
 <PageTitle>Store Profile</PageTitle>
 
@@ -15,132 +19,178 @@
             <div>
                 <span class="text-uppercase text-secondary fw-semibold small company-kicker">Business profile</span>
                 <h2 class="mb-2">Store Profile</h2>
-                <p class="text-muted mb-0">Maintain the medical store details used on invoices, receipts, and billing records.</p>
+                <p class="text-muted mb-0">Maintain the medical store details used on invoices, receipts, and billing
+                    records.</p>
+                </div>
+                <button type="button" class="btn btn-outline-secondary company-back" @onclick="BackToHome">Home</button>
             </div>
-            <button type="button" class="btn btn-outline-secondary company-back" @onclick="BackToHome">Home</button>
-        </div>
 
-        @if (IsLoading)
-        {
-            <div class="company-state-card text-center py-5">
-                <div class="spinner-border text-primary" role="status"></div>
-            </div>
-        }
-        else
-        {
-            @if (CanEditCompany)
+            @if (IsLoading)
             {
-                <EditForm Model="StoreProfile" OnValidSubmit="SaveAsync">
-                    <div class="row g-4">
-                        <div class="col-12 col-xl-8">
-                            @if (ValidationErrors.Any())
-                            {
-                                <div class="alert alert-danger shadow-sm border-0 mb-4" role="alert">
-                                    <div class="fw-semibold mb-2">Please review these issues before saving.</div>
-                                    <ul class="mb-0 ps-3">
-                                        @foreach (var error in ValidationErrors)
-                                        {
-                                            <li>@error</li>
-                                        }
-                                    </ul>
-                                </div>
-                            }
-
-                            <section class="company-panel">
-                                <div class="company-panel-header">
-                                    <div>
-                                        <h3 class="h5 mb-1">Store details</h3>
-                                        <p class="text-muted mb-0">Keep these details accurate for printed and digital billing documents.</p>
-                                    </div>
-                                </div>
-
-                                <div class="row g-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-semibold">Store name</label>
-                                        <InputText class="form-control form-control-lg" @bind-Value="StoreProfile.Name" />
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-semibold">Contact number</label>
-                                        <InputText class="form-control form-control-lg" @bind-Value="StoreProfile.ContactNumber" />
-                                    </div>
-                                    <div class="col-12">
-                                        <label class="form-label fw-semibold">Address</label>
-                                        <InputTextArea class="form-control company-address" rows="4" @bind-Value="StoreProfile.Address" />
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-semibold">License number</label>
-                                        <InputText class="form-control form-control-lg" @bind-Value="StoreProfile.LicenseNumber" />
-                                    </div>
-                                </div>
-                            </section>
-                        </div>
-
-                        <div class="col-12 col-xl-4">
-                            <aside class="company-sidecard">
-                                <h3 class="h5 mb-3">Profile actions</h3>
-                                <p class="text-muted mb-4">Save once your pharmacy information is up to date.</p>
-                                <div class="d-grid gap-2">
-                                    <button type="submit" class="btn btn-primary btn-lg">Save profile</button>
-                                    <button type="button" class="btn btn-outline-secondary" @onclick="BackToHome">Cancel</button>
-                                </div>
-                            </aside>
-                        </div>
-                    </div>
-                </EditForm>
+                <div class="company-state-card text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
             }
             else
             {
-                <section class="company-panel company-readonly-panel">
-                    <div class="company-panel-header">
-                        <div>
-                            <h3 class="h5 mb-1">Store details</h3>
-                            <p class="text-muted mb-0">View the profile currently used across your billing screens.</p>
-                        </div>
-                    </div>
+                @if (!CanViewCompany)
+                {
+                    <section class="company-panel company-readonly-panel">
+                        <div class="company-panel-header">
+                            <div>
+                                <h3 class="h5 mb-1">Access Required</h3>
+                                <p class="text-muted mb-0">You must sign in with a user who has permission to view the store
+                                    profile.</p>
+                                </div>
+                            </div>
+                        </section>
+                    }
+                else if (CanEditCompany)
+                    {
+                        <EditForm Model="StoreProfile" OnValidSubmit="SaveAsync">
+                            <div class="row g-4">
+                                <div class="col-12 col-xl-8">
+                                    @if (ValidationErrors.Any())
+                                    {
+                                        <div class="alert alert-danger shadow-sm border-0 mb-4" role="alert">
+                                            <div class="fw-semibold mb-2">Please review these issues before saving.</div>
+                                            <ul class="mb-0 ps-3">
+                                                @foreach (var error in ValidationErrors)
+                                                {
+                                                    <li>@error</li>
+                                                }
+                                            </ul>
+                                        </div>
+                                    }
 
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <div class="company-readonly-field">
-                                <span class="text-muted small text-uppercase fw-semibold">Store name</span>
-                                <div>@StoreProfile.Name</div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="company-readonly-field">
-                                <span class="text-muted small text-uppercase fw-semibold">Contact number</span>
-                                <div>@StoreProfile.ContactNumber</div>
-                            </div>
-                        </div>
-                        <div class="col-12">
-                            <div class="company-readonly-field">
-                                <span class="text-muted small text-uppercase fw-semibold">Address</span>
-                                <div>@StoreProfile.Address</div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="company-readonly-field">
-                                <span class="text-muted small text-uppercase fw-semibold">License number</span>
-                                <div>@StoreProfile.LicenseNumber</div>
-                            </div>
-                        </div>
+                                    <section class="company-panel">
+                                        <div class="company-panel-header">
+                                            <div>
+                                                <h3 class="h5 mb-1">Store details</h3>
+                                                <p class="text-muted mb-0">Keep these details accurate for printed and digital billing
+                                                    documents.</p>
+                                                </div>
+                                            </div>
+
+                                            <div class="row g-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label fw-semibold">Store name</label>
+                                                    <InputText class="form-control form-control-lg" @bind-Value="StoreProfile.Name" />
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label fw-semibold">Contact number</label>
+                                                    <InputText class="form-control form-control-lg"
+                                                               @bind-Value="StoreProfile.ContactNumber" />
+                                                </div>
+                                                <div class="col-12">
+                                                    <label class="form-label fw-semibold">Address</label>
+                                                    <InputTextArea class="form-control company-address" rows="4"
+                                                                   @bind-Value="StoreProfile.Address" />
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label fw-semibold">License number</label>
+                                                    <InputText class="form-control form-control-lg"
+                                                               @bind-Value="StoreProfile.LicenseNumber" />
+                                                </div>
+                                            </div>
+                                            <div class="row g-3">
+                                                <div class="col-md-4">
+                                                    <p class="text-uppercase text-muted mb-1">License key</p>
+                                                    <h5 class="mb-0">@StoreProfile.LicenseKey</h5>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <p class="text-uppercase text-muted mb-1">Hardware ID</p>
+                                                    <p class="mb-0">@StoreProfile.HardwareId</p>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <p class="text-uppercase text-muted mb-1">Expires</p>
+                                                    <p class="mb-0">@StoreProfile.LicenseExpiry?.ToString("d")</p>
+                                                </div>
+
+                                            
+                                            </div>
+                                        </section>
+                                    </div>
+
+                                    <div class="col-12 col-xl-4">
+                                        <aside class="company-sidecard">
+                                            <h3 class="h5 mb-3">Profile actions</h3>
+                                            <p class="text-muted mb-4">Save once your pharmacy information is up to date. <span>A valid
+                                                license key is required to use this pharmacy system.</span></p>
+                                                <div class="d-grid gap-2">
+                                                    <button type="submit" class="btn btn-primary btn-lg">Save profile</button>
+                                                    <button type="button" class="btn btn-outline-secondary"
+                                                            @onclick="BackToHome">Cancel</button>
+                                                </div>
+                                            </aside>
+                                        </div>
+                                    </div>
+                                </EditForm>
+                            }
+            else
+                            {
+                                <section class="company-panel company-readonly-panel">
+                                    <div class="company-panel-header">
+                                        <div>
+                                            <h3 class="h5 mb-1">Store details</h3>
+                                            <p class="text-muted mb-0">View the profile currently used across your billing screens.</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <div class="company-readonly-field">
+                                                <span class="text-muted small text-uppercase fw-semibold">Store name</span>
+                                                <div>@StoreProfile.Name</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="company-readonly-field">
+                                                <span class="text-muted small text-uppercase fw-semibold">Contact number</span>
+                                                <div>@StoreProfile.ContactNumber</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-12">
+                                            <div class="company-readonly-field">
+                                                <span class="text-muted small text-uppercase fw-semibold">Address</span>
+                                                <div>@StoreProfile.Address</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="company-readonly-field">
+                                                <span class="text-muted small text-uppercase fw-semibold">License number</span>
+                                                <div>@StoreProfile.LicenseNumber</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+                            }
+                        }
                     </div>
-                </section>
-            }
-        }
-    </div>
-</div>
+                </div>
 
 @code {
     private CompanyDto StoreProfile = new();
     private bool IsLoading = true;
     private bool CanEditCompany;
+    private bool CanViewCompany;
+    private bool IsSetupMode;
     private List<string> ValidationErrors = [];
 
     protected override async Task OnInitializedAsync()
     {
         var profile = await CompanyService.GetCompanyAsync();
         StoreProfile = profile ?? new CompanyDto();
-        CanEditCompany = await PermissionService.HasPermissionAsync("Company.Edit");
+        IsSetupMode = profile is null;
+
+        CanEditCompany = IsSetupMode || await PermissionService.HasPermissionAsync("Company.Edit");
+        CanViewCompany = IsSetupMode || await PermissionService.HasPermissionAsync("Company.View");
+
+        if (string.IsNullOrWhiteSpace(StoreProfile.HardwareId))
+        {
+            StoreProfile.HardwareId = LicenseHelper.GetHardwareId();
+        }
+
         IsLoading = false;
     }
 
@@ -150,7 +200,19 @@
 
         try
         {
+            if (string.IsNullOrWhiteSpace(StoreProfile.LicenseKey))
+            {
+                ValidationErrors.Add("License Key is required. Please provide a valid license key before saving.");
+                return;
+            }
+
+            StoreProfile.HardwareId = LicenseHelper.GetHardwareId();
+            StoreProfile.IsActivated = true;
+            StoreProfile.LicenseExpiry = DateTime.UtcNow.AddYears(1);
+
             await CompanyService.CreateOrUpdateCompanyAsync(StoreProfile);
+            LicenseStatus.IsValid = true;
+            LicenseStatus.Message = string.Empty;
             Navigation.NavigateTo("/company", true);
         }
         catch (FluentValidation.ValidationException validationException)

@@ -1,0 +1,96 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.ComponentModel
+@inject LicenseStatus Status
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject Shsmg.Pharma.WebUI.Services.PermissionService PermissionService
+
+@if (ShouldShowOverlay)
+{
+    <div class="license-overlay">
+        <div class="license-modal">
+            <h2 class="text-danger">Access Restricted</h2>
+            <p>@OverlayMessage</p>
+            <hr />
+            <small>Hardware ID: @Shsmg.Pharma.Infra.Security.LicenseHelper.GetHardwareId()</small>
+            <div class="mt-4">
+                @if (!IsAuthenticated)
+                {
+                    <a class="btn btn-primary" href="/login">Login</a>
+                }
+                else
+                {
+                    <a class="btn btn-primary" href="/company">Open Store Profile</a>
+                }
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .license-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .license-modal {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            max-width: 400px;
+            text-align: center;
+        }
+    </style>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    
+    private bool _isInitialized; // New flag
+    private bool IsAuthenticated { get; set; }
+    private bool IsAdmin { get; set; }
+    private bool ShouldShowOverlay => _isInitialized && (
+        (!IsAuthenticated && !IsLoginRoute && !IsAdmin) ||
+        (IsAuthenticated && !Status.IsValid && !IsCompanyRoute && !IsAdmin)
+    );
+    private string OverlayMessage => !IsAuthenticated ? "Please log in to access the application." : Status.Message;
+    private bool IsLoginRoute => new Uri(Navigation.Uri).LocalPath.Equals("/login", StringComparison.OrdinalIgnoreCase);
+    private bool IsCompanyRoute => new Uri(Navigation.Uri).LocalPath.Equals("/company", StringComparison.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        Status.PropertyChanged += OnStatusPropertyChanged;
+        
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        IsAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+        
+        // Only check admin if they are actually logged in to avoid extra DB/Service hits
+        if (IsAuthenticated)
+        {
+            IsAdmin = await PermissionService.IsAdminAsync();
+        }
+
+        _isInitialized = true; // Data is now ready
+    }
+
+    private void OnStatusPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Status.PropertyChanged -= OnStatusPropertyChanged;
+    }
+}
