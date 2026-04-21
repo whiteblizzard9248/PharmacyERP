@@ -4,20 +4,24 @@ using FluentValidation;
 using Shsmg.Pharma.Application.Common;
 using Shsmg.Pharma.Application.DTOs;
 using Shsmg.Pharma.Domain.Models;
+using Microsoft.Extensions.Logging;
 
 namespace Shsmg.Pharma.Application.Services;
 
 public sealed class InvoiceService(
     IPharmacyDbContext context,
     IValidator<CreateInvoiceDto> createValidator,
-    ICurrentUserAccessor currentUserAccessor) : IInvoiceService
+    ICurrentUserAccessor currentUserAccessor,
+    ILogger<InvoiceService> logger) : IInvoiceService
 {
     private readonly IPharmacyDbContext _context = context;
     private readonly IValidator<CreateInvoiceDto> _createValidator = createValidator;
     private readonly ICurrentUserAccessor _currentUserAccessor = currentUserAccessor;
+    private readonly ILogger<InvoiceService> _logger = logger;
 
     public async Task<IEnumerable<InvoiceSummaryDto>> GetInvoiceSummariesAsync()
     {
+        _logger.LogInformation("Attempting to retrieve invoice summaries.");
         return await _context.Invoices
             .AsNoTracking()
             .Where(i => !i.IsDeleted)
@@ -36,6 +40,7 @@ public sealed class InvoiceService(
 
     public async Task<InvoiceDetailDto?> GetInvoiceByIdAsync(Guid id)
     {
+        _logger.LogInformation("Attempting to retrieve invoice details.");
         return await _context.Invoices
             .Where(i => i.Id == id && !i.IsDeleted)
             .Select(i => new InvoiceDetailDto
@@ -70,6 +75,7 @@ public sealed class InvoiceService(
 
     public async Task<IReadOnlyList<InvoiceAuditLogDto>> GetInvoiceAuditLogsAsync(Guid invoiceId)
     {
+        _logger.LogInformation("Attempting to retrieve invoice audit logs.");
         return await _context.InvoiceAuditLogs
             .AsNoTracking()
             .Where(log => log.InvoiceId == invoiceId)
@@ -87,6 +93,7 @@ public sealed class InvoiceService(
 
     public async Task<Guid> CreateInvoiceAsync(CreateInvoiceDto dto)
     {
+        _logger.LogInformation("Attempting to create invoice.");
         await _createValidator.ValidateAndThrowAsync(dto);
 
         var now = DateTime.UtcNow;
@@ -140,13 +147,16 @@ public sealed class InvoiceService(
             PerformedBy = actor
         });
 
+        _logger.LogInformation("Creating invoice.");
         await _context.SaveChangesAsync();
+        _logger.LogInformation("Invoice created successfully.");
         _context.ChangeTracker.Clear();
         return invoice.Id;
     }
 
     public async Task<Guid> UpdateInvoiceAsync(UpdateInvoiceDto dto)
     {
+        _logger.LogInformation("Attempting to update invoice.");
         await _createValidator.ValidateAndThrowAsync(new CreateInvoiceDto
         {
             InvoiceNumber = dto.InvoiceNumber,
@@ -170,6 +180,7 @@ public sealed class InvoiceService(
             .Property(x => x.RowVersion)
             .OriginalValue = dto.RowVersion;
 
+        _logger.LogInformation("Updating invoice.");
         foreach (var item in dto.Items)
         {
             if (item.Id == Guid.Empty)
@@ -204,6 +215,7 @@ public sealed class InvoiceService(
         });
 
         await _context.SaveChangesAsync();
+        _logger.LogInformation("Invoice updated successfully.");
         _context.ChangeTracker.Clear();
 
         return invoice.Id;

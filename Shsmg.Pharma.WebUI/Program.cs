@@ -11,12 +11,34 @@ using Microsoft.AspNetCore.Components;
 using Shsmg.Pharma.Infra.Security;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using Serilog;
+using Serilog.Events;
 
 var culture = new CultureInfo("en-IN");
 CultureInfo.DefaultThreadCurrentCulture = culture;
 CultureInfo.DefaultThreadCurrentUICulture = culture;
 
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+    .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
+    .Enrich.FromLogContext()
+    .Enrich.WithMachineName()
+    .Enrich.WithThreadId()
+    .Enrich.WithProperty("Application", "Shsmg.Pharma.WebUI")
+    .WriteTo.Console()
+    .WriteTo.Async(a => a.File(
+        "logs/log-.txt",
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 10,
+        fileSizeLimitBytes: 10_000_000,
+        rollOnFileSizeLimit: true,
+        shared: true
+    ))
+    .CreateLogger();
+
 var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseSerilog();
 
 builder.Services.AddApplication();
 
@@ -70,67 +92,83 @@ builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddScoped<Shsmg.Pharma.WebUI.Services.PermissionService>();
 builder.Services.AddSingleton<LicenseStatus>();
 
-var app = builder.Build();
-
-using (var scope = app.Services.CreateScope())
+try
 {
-    var context = scope.ServiceProvider.GetRequiredService<PharmacyDbContext>();
-    var status = app.Services.GetRequiredService<LicenseStatus>();
+    Log.Information("Starting Pharma ERP...");
+    var app = builder.Build();
+    app.UseSerilogRequestLogging();
 
-    status.IsValid = true;
-    status.Message = string.Empty;
-
-    var company = await context.Companies.FirstOrDefaultAsync();
-    var currentHardwareId = LicenseHelper.GetHardwareId();
-
-    if (company != null)
+    using (var scope = app.Services.CreateScope())
     {
-        if (!company.IsActivated)
+        var context = scope.ServiceProvider.GetRequiredService<PharmacyDbContext>();
+        var status = app.Services.GetRequiredService<LicenseStatus>();
+
+        status.IsValid = true;
+        status.Message = string.Empty;
+
+        var company = await context.Companies.FirstOrDefaultAsync();
+        var currentHardwareId = LicenseHelper.GetHardwareId();
+
+        Log.Information("Verifying license for hardware ID: {HardwareId}", currentHardwareId);
+
+        if (company != null)
         {
-            status.IsValid = false;
-            status.Message = "License is not activated. Please update your store profile to activate the installation.";
-        }
-        else if (company.HardwareId != currentHardwareId)
-        {
-            status.IsValid = false;
-            status.Message = "Unauthorized Hardware: This installation is locked to another server.";
-        }
-        else if (company.LicenseExpiry.HasValue && company.LicenseExpiry < DateTime.UtcNow)
-        {
-            status.IsValid = false;
-            status.Message = "License Expired: Please contact Shsmg Pharma Support.";
+            if (!company.IsActivated)
+            {
+                status.IsValid = false;
+                status.Message = "License is not activated. Please update your store profile to activate the installation.";
+            }
+            else if (company.HardwareId != currentHardwareId)
+            {
+                status.IsValid = false;
+                status.Message = "Unauthorized Hardware: This installation is locked to another server.";
+            }
+            else if (company.LicenseExpiry.HasValue && company.LicenseExpiry < DateTime.UtcNow)
+            {
+                status.IsValid = false;
+                status.Message = "License Expired: Please contact Shsmg Pharma Support.";
+            }
         }
     }
+
+    app.UseRequestLocalization(new RequestLocalizationOptions
+    {
+        DefaultRequestCulture = new RequestCulture(culture),
+        SupportedCultures = [culture],
+        SupportedUICultures = [culture]
+    });
+
+    // Configure the HTTP request pipeline.
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseExceptionHandler("/Error", createScopeForErrors: true);
+        // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
+        app.UseHsts();
+    }
+    app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+    app.UseHttpsRedirection();
+
+    app.UseAuthentication();
+    app.UseAuthorization();
+    app.UseAntiforgery();
+
+    app.MapStaticAssets();
+
+    app.MapRazorComponents<App>()
+        .AddInteractiveServerRenderMode();
+
+    Log.Information("Seeding default user and roles...");
+    await SeedDefaultUserAsync(app.Services);
+    app.Run();
 }
-
-app.UseRequestLocalization(new RequestLocalizationOptions
+catch (Exception ex)
 {
-    DefaultRequestCulture = new RequestCulture(culture),
-    SupportedCultures = [culture],
-    SupportedUICultures = [culture]
-});
-
-// Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
-{
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-    app.UseHsts();
+    Log.Fatal(ex, "Application terminated unexpectedly");
 }
-app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.UseHttpsRedirection();
-
-app.UseAuthentication();
-app.UseAuthorization();
-app.UseAntiforgery();
-
-app.MapStaticAssets();
-
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
-
-await SeedDefaultUserAsync(app.Services);
-app.Run();
+finally
+{
+    Log.CloseAndFlush();
+}
 
 static async Task SeedDefaultUserAsync(IServiceProvider serviceProvider)
 {

@@ -1,16 +1,19 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Shsmg.Pharma.Application.Common;
 using Shsmg.Pharma.Application.DTOs;
 using Shsmg.Pharma.Domain.Models;
 
 namespace Shsmg.Pharma.Application.Services;
 
-public sealed class CompanyService(IPharmacyDbContext context) : ICompanyService
+public sealed class CompanyService(IPharmacyDbContext context, ILogger<CompanyService> logger) : ICompanyService
 {
     private readonly IPharmacyDbContext _context = context;
+    private readonly ILogger<CompanyService> _logger = logger;
 
     public async Task<CompanyDto?> GetCompanyAsync()
     {
+        _logger.LogInformation("Attempting to retrieve company information.");
         var company = await _context.Companies
             .AsNoTracking()
             .FirstOrDefaultAsync(c => !c.IsDeleted);
@@ -35,6 +38,7 @@ public sealed class CompanyService(IPharmacyDbContext context) : ICompanyService
 
     public async Task<Guid> CreateOrUpdateCompanyAsync(CompanyDto dto)
     {
+        _logger.LogInformation("Attempting to create or update company information.");
         var existingCompany = dto.Id != Guid.Empty
             ? await _context.Companies.FirstOrDefaultAsync(c => c.Id == dto.Id && !c.IsDeleted)
             : await _context.Companies.FirstOrDefaultAsync(c => !c.IsDeleted);
@@ -52,6 +56,7 @@ public sealed class CompanyService(IPharmacyDbContext context) : ICompanyService
             existingCompany.LastModified = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
+            _logger.LogInformation("Company information updated successfully.");
             return existingCompany.Id;
         }
 
@@ -67,6 +72,7 @@ public sealed class CompanyService(IPharmacyDbContext context) : ICompanyService
         };
 
         _context.Companies.Add(newCompany);
+        _logger.LogInformation("Creating new company information.");
         await _context.SaveChangesAsync();
         _context.ChangeTracker.Clear();
         return newCompany.Id;
