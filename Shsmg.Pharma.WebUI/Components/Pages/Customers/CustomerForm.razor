@@ -8,84 +8,132 @@
 @inject ICustomerService CustomerService
 @inject NavigationManager Nav
 
-<h3>@(IsEdit ? "Edit Customer" : "Create Customer")</h3>
-
-@if (isLoading)
-{
-    <p>Loading...</p>
-}
-else
-{
-    <EditForm Model="form" OnValidSubmit="HandleSubmit" FormName="CustomerForm">
-        <DataAnnotationsValidator />
-        <ValidationSummary />
-
-        <!-- BASIC -->
-        <div class="card p-3 mb-3">
-            <h5>Basic Info</h5>
-
-            <InputText class="form-control mb-2" placeholder="Name" @bind-Value="form.Name" />
-
-            <InputText class="form-control mb-2" placeholder="Phone" @bind-Value="form.PhoneNumber" disabled="@IsEdit" />
-
-            <InputText class="form-control mb-2" placeholder="Email" @bind-Value="form.Email" />
-
-            <InputSelect class="form-select" @key="form.Type" @bind-Value="form.Type" @bind:after="OnTypeChanged"
-                         disabled="@IsEdit">
-                <option value="@CustomerType.WalkIn">Walk-In</option>
-                <option value="@CustomerType.Registered">Registered</option>
-                <option value="@CustomerType.Corporate">Corporate</option>
-            </InputSelect>
+<div class="customer-form-shell p-3 p-md-4">
+    <!-- HEADER / HERO -->
+    <div class="customer-form-hero mb-4">
+        <div>
+            <div class="customer-form-kicker text-uppercase text-muted small">
+                Customer Management
+            </div>
+            <h3 class="mb-1">
+                @(IsEdit ? "Edit Customer" : "Create Customer")
+            </h3>
+            <p class="text-muted mb-0">
+                Manage customer details, billing, and compliance information.
+            </p>
         </div>
 
-        <!-- ADDRESS -->
-        @if (RequiresAddress)
-        {
-            <div class="card p-3 mb-3">
-                <h5>Billing Address</h5>
-
-                <InputText class="form-control mb-2" placeholder="Line1" @bind-Value="form.Address.Street" />
-                <InputText class="form-control mb-2" placeholder="Line2" @bind-Value="form.Address.Street2" />
-                <InputText class="form-control mb-2" placeholder="City" @bind-Value="form.Address.City" />
-                <InputText class="form-control mb-2" placeholder="State" @bind-Value="form.Address.State" />
-                <InputText class="form-control mb-2" placeholder="Pincode" @bind-Value="form.Address.PostalCode" />
-            </div>
-        }
-
-        <!-- PATIENT INFO -->
-        @if (RequiresPatientInfo)
-        {
-            <div class="card p-3 mb-3">
-                <h5>Patient Info</h5>
-
-                <InputNumber class="form-control mb-2" placeholder="Age" @bind-Value="form.Age" />
-
-                <InputSelect class="form-select mb-2" @bind-Value="form.Gender">
-                    <option value="">-- Gender --</option>
-                    <option value="M">Male</option>
-                    <option value="F">Female</option>
-                    <option value="O">Other</option>
-                </InputSelect>
-
-                @if (form.Type == CustomerType.Corporate)
-                {
-                    <InputText class="form-control mb-2" placeholder="GSTIN" @bind-Value="form.GSTIN" />
-                }
-
-                <InputText class="form-control mb-2" placeholder="Doctor" @bind-Value="form.DoctorName" />
-                <InputTextArea class="form-control" placeholder="Notes" @bind-Value="form.MedicalNotes" />
-            </div>
-        }
-
-        <button class="btn btn-primary" type="submit">
-            @(IsEdit ? "Update" : "Create")
+        <button class="btn btn-outline-secondary customer-form-back" @onclick="Cancel">
+            Back
         </button>
+    </div>
 
-        <button class="btn btn-secondary ms-2" @onclick="Cancel">
-            Cancel
-        </button>
-    </EditForm>
-}
+    @if (isLoading)
+    {
+        <p>Loading...</p>
+    }
+    else
+    {
+        <EditForm Model="form" OnValidSubmit="HandleSubmit" FormName="CustomerForm">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="row g-4">
+                
+                <!-- MAIN PANEL -->
+                <div class="col-lg-8">
+                    
+                    <!-- BASIC -->
+                    <div class="customer-form-panel mb-4">
+                        <div class="customer-form-panel-header">
+                            <h5 class="mb-0">Basic Info</h5>
+                        </div>
+
+                        <InputText class="form-control mb-3" placeholder="Name" @bind-Value="form.Name" />
+
+                        <InputText class="form-control mb-3" placeholder="Phone" @bind-Value="form.PhoneNumber"
+                                   disabled="@IsEdit" />
+
+                        <InputText class="form-control mb-3" placeholder="Email" @bind-Value="form.Email" />
+
+                        <InputSelect class="form-control" @bind-Value="form.Type" @bind:after="OnTypeChanged"
+                                     disabled="@IsEdit">
+
+                            <option value="@CustomerType.WalkIn">Walk-In</option>
+                            <option value="@CustomerType.Registered">Registered</option>
+                            <option value="@CustomerType.Corporate">Corporate</option>
+
+                        </InputSelect>
+                    </div>
+
+                    <!-- ADDRESS -->
+                    @if (RequiresAddress)
+                    {
+                        <div class="customer-form-panel mb-4">
+                            <div class="customer-form-panel-header">
+                                <h5 class="mb-0">Billing Address</h5>
+                            </div>
+
+                            <InputText class="form-control mb-3" placeholder="Line 1" @bind-Value="form.Address.Street" />
+
+                            <InputText class="form-control mb-3" placeholder="Line 2" @bind-Value="form.Address.Street2" />
+
+                            <InputText class="form-control mb-3" placeholder="City" @bind-Value="form.Address.City" />
+
+                            <InputText class="form-control mb-3" placeholder="State" @bind-Value="form.Address.State" />
+
+                            <InputText class="form-control" placeholder="Pincode" @bind-Value="form.Address.PostalCode" />
+                        </div>
+                    }
+
+                    <!-- PATIENT INFO -->
+                    @if (RequiresPatientInfo)
+                    {
+                        <div class="customer-form-panel mb-4">
+                            <div class="customer-form-panel-header">
+                                <h5 class="mb-0">Patient Info</h5>
+                            </div>
+
+                            <InputNumber class="form-control mb-3" placeholder="Age" @bind-Value="form.Age" />
+
+                            <InputSelect class="form-control mb-3" @bind-Value="form.Gender">
+                                <option value="">-- Gender --</option>
+                                <option value="M">Male</option>
+                                <option value="F">Female</option>
+                                <option value="O">Other</option>
+                            </InputSelect>
+
+                            @if (form.Type == CustomerType.Corporate)
+                            {
+                                <InputText class="form-control mb-3" placeholder="GSTIN" @bind-Value="form.GSTIN" />
+                            }
+
+                            <InputText class="form-control mb-3" placeholder="Doctor" @bind-Value="form.DoctorName" />
+
+                            <InputTextArea class="form-control" placeholder="Notes" @bind-Value="form.MedicalNotes" />
+                        </div>
+                    }
+                </div>
+
+                <!-- SIDE PANEL -->
+                <div class="col-lg-4">
+                    <div class="customer-form-sidecard">
+                        <h6 class="mb-3">Actions</h6>
+
+                        <button class="btn btn-primary w-100 mb-2" type="submit">
+                            @(IsEdit ? "Update Customer" : "Create Customer")
+                        </button>
+
+                        <button class="btn btn-outline-secondary w-100" type="button" @onclick="Cancel">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </EditForm>
+    }
+</div>
 
 @code {
     [Parameter] public Guid? CustomerId { get; set; }

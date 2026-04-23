@@ -144,7 +144,9 @@ public class CustomerService(ICustomerRepository repository) : ICustomerService
     public async Task<Guid> CreateCustomerAsync(CreateCustomerDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.Name))
+        {
             throw new ArgumentException("Customer name is required.", nameof(dto.Name));
+        }
 
         var type = (CustomerType)dto.Type;
 
@@ -416,7 +418,7 @@ public class CustomerService(ICustomerRepository repository) : ICustomerService
         var totalCount = await query.CountAsync(cancellationToken);
 
         // 4. Sorting (generic)
-        query = query.ApplySorting(request.SortBy, request.SortOrder);
+        query = ApplySorting(query, request.SortBy, request.SortOrder);
 
         // 5. Paging
         var customers = await query
@@ -534,43 +536,30 @@ public class CustomerService(ICustomerRepository repository) : ICustomerService
         );
     }
 
-}
-
-public static class IQueryableExtensions
-{
-    public static IQueryable<T> ApplySorting<T>(
-        this IQueryable<T> source,
-        string? sortBy,
-        string? sortOrder)
+    private static readonly Dictionary<string, Expression<Func<Customer, object>>> SortMap
+    = new(StringComparer.OrdinalIgnoreCase)
     {
-        if (string.IsNullOrWhiteSpace(sortBy))
-            return source; // no sorting
+        ["name"] = c => c.Name,
+        ["phone"] = c => c.PhoneNumber!,
+        ["type"] = c => c.Type,
+        ["outstanding"] = c => c.OutstandingAmount,
+        ["credit"] = c => c.CreditLimit,
+        ["lastpurchase"] = c => c.LastPurchaseDate!
+    };
 
-        var parameter = Expression.Parameter(typeof(T), "x");
+    private IQueryable<Customer> ApplySorting(
+    IQueryable<Customer> query,
+    string? sortBy,
+    string? sortOrder)
+    {
+        if (string.IsNullOrWhiteSpace(sortBy) || !SortMap.ContainsKey(sortBy))
+            return query.OrderBy(c => c.Name); // default
 
-        var property = typeof(T)
-            .GetProperties()
-            .FirstOrDefault(p =>
-                string.Equals(p.Name, sortBy, StringComparison.OrdinalIgnoreCase));
+        var keySelector = SortMap[sortBy];
 
-        if (property == null)
-            return source; // fallback silently
-
-        var propertyAccess = Expression.Property(parameter, property);
-        var lambda = Expression.Lambda(propertyAccess, parameter);
-
-        var methodName = string.Equals(sortOrder, "desc", StringComparison.OrdinalIgnoreCase)
-            ? "OrderByDescending"
-            : "OrderBy";
-
-        var resultExpression = Expression.Call(
-            typeof(Queryable),
-            methodName,
-            new Type[] { typeof(T), property.PropertyType },
-            source.Expression,
-            Expression.Quote(lambda)
-        );
-
-        return source.Provider.CreateQuery<T>(resultExpression);
+        return string.Equals(sortOrder, "desc", StringComparison.OrdinalIgnoreCase)
+            ? query.OrderByDescending(keySelector)
+            : query.OrderBy(keySelector);
     }
+
 }
