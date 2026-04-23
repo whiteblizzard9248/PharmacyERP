@@ -2,11 +2,14 @@
 @page "/invoices/edit/{InvoiceId:guid}"
 @attribute [Authorize(Policy = "Invoice.View")]
 @using Shsmg.Pharma.Application.Common
+@using Shsmg.Pharma.Application.DTOs
 @using Shsmg.Pharma.Application.Services
+@using Shsmg.Pharma.Domain.Models
 @rendermode InteractiveServer
 
 @inject IInvoiceService InvoiceService
 @inject IInventoryService InventoryService
+@inject ICustomerService CustomerService
 @inject NavigationManager Navigation
 
 <PageTitle>@(IsEdit ? "Edit Invoice" : "New Invoice")</PageTitle>
@@ -17,230 +20,427 @@
             <div>
                 <span class="text-uppercase text-secondary fw-semibold small invoice-kicker">Invoice workspace</span>
                 <h2 class="mb-2">@(IsEdit ? "Edit Invoice" : "Create Invoice")</h2>
-                <p class="text-muted mb-0">Capture billing details, review medicines clearly, and keep totals visible while you work.</p>
-            </div>
-            <button type="button" class="btn btn-outline-secondary invoice-back-btn" @onclick="BackToList">Back to invoices</button>
-        </div>
+                <p class="text-muted mb-0">Capture billing details, review medicines clearly, and keep totals visible
+                    while you work.</p>
+                </div>
+                <button type="button" class="btn btn-outline-secondary invoice-back-btn" @onclick="BackToList">Back to
+                    invoices</button>
+                </div>
 
-        @if (IsLoading)
-        {
-            <div class="invoice-state-card text-center py-5">
-                <div class="spinner-border text-primary" role="status"></div>
-            </div>
-        }
-        else if (NotFound)
-        {
-            <div class="alert alert-warning shadow-sm border-0">Invoice not found.</div>
-        }
-        else
-        {
-            <EditForm Model="Invoice" OnValidSubmit="SaveAsync" FormName="InvoiceForm">
-                <div class="row g-4">
-                    <div class="col-12 col-xl-8">
-                        <section class="invoice-panel mb-4">
-                            <div class="invoice-panel-header">
-                                <div>
-                                    <h3 class="h5 mb-1">Invoice details</h3>
-                                    <p class="text-muted mb-0">Start with the patient, doctor, date, and invoice reference.</p>
-                                </div>
-                            </div>
-
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <label class="form-label fw-semibold">Patient name</label>
-                                    <InputText class="form-control form-control-lg" @bind-Value="Invoice.PatientName" />
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label fw-semibold">Doctor name</label>
-                                    <InputText class="form-control form-control-lg" @bind-Value="Invoice.DoctorName" />
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label fw-semibold">Invoice date</label>
-                                    <InputDate class="form-control form-control-lg" @bind-Value="Invoice.Date" />
-                                </div>
-                                <div class="col-md-8">
-                                    <label class="form-label fw-semibold">Invoice number</label>
-                                    <InputText class="form-control form-control-lg"
-                                               @bind-Value="Invoice.InvoiceNumber"
-                                               disabled="@(IsEdit || !string.IsNullOrWhiteSpace(Invoice.InvoiceNumber))" />
-                                    <div class="form-text">Leave blank to generate a new invoice number automatically.</div>
-                                </div>
-                            </div>
-                        </section>
-
-                        @if (ValidationErrors.Any())
-                        {
-                            <div class="alert alert-danger shadow-sm border-0 mb-4" role="alert">
-                                <div class="fw-semibold mb-2">Please review these issues before saving.</div>
-                                <ul class="mb-0 ps-3">
-                                    @foreach (var error in ValidationErrors)
-                                    {
-                                        <li>@error</li>
-                                    }
-                                </ul>
-                                @if (ValidationErrors.Any(e => e.Contains("modified elsewhere")))
-                                {
-                                    <button type="button" class="btn btn-sm btn-outline-danger mt-3" @onclick="ReloadInvoice">
-                                        Refresh latest invoice data
-                                    </button>
-                                }
-                            </div>
-                        }
-
-                        <section class="invoice-panel">
-                            <div class="invoice-panel-header invoice-items-header">
-                                <div>
-                                    <h3 class="h5 mb-1">Line items</h3>
-                                    <p class="text-muted mb-0">Add medicines and charges with clear fields for quantity, rate, and GST.</p>
-                                </div>
-                                <button type="button" class="btn btn-primary" @onclick="AddItem">Add line item</button>
-                            </div>
-
-                            <div class="d-grid gap-3">
-                                @for (var index = 0; index < Invoice.Items.Count; index++)
-                                {
-                                    var item = Invoice.Items[index];
-                                    <section @key="item.Id" class="invoice-item-card">
-                                        <div class="invoice-item-topbar">
-                                            <div>
-                                                <span class="badge text-bg-light border">Item @(index + 1)</span>
-                                            </div>
-                                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemoveItem(item)">Remove</button>
+                @if (IsLoading)
+                {
+                    <div class="invoice-state-card text-center py-5">
+                        <div class="spinner-border text-primary" role="status"></div>
+                    </div>
+                }
+                else if (NotFound)
+                {
+                    <div class="alert alert-warning shadow-sm border-0">Invoice not found.</div>
+                }
+                else
+                {
+                    <EditForm Model="Invoice" OnValidSubmit="SaveAsync" FormName="InvoiceForm">
+                        <div class="row g-4">
+                            <div class="col-12 col-xl-8">
+                                <section class="invoice-panel mb-4">
+                                    <div class="invoice-panel-header">
+                                        <div>
+                                            <h3 class="h5 mb-1">Invoice details</h3>
+                                            <p class="text-muted mb-0">Start with the patient, doctor, date, and invoice reference.
+                                            </p>
                                         </div>
+                                    </div>
 
-                                        <div class="row g-3">
-                                            <div class="col-12">
-                                                <label class="form-label fw-semibold">Inventory item <span class="fw-normal text-muted">(optional)</span></label>
-                                                <input class="form-control"
-                                                       placeholder="Search inventory by item, HSN code, batch, or manufacturer"
-                                                       value="@GetInventorySearchText(item)"
-                                                       @oninput="@(async e => await OnInventorySearchChangedAsync(item, e))" />
-                                                <div class="form-text">Select an inventory item to auto-fill this line, or skip it and enter the item manually.</div>
+                                    <div class="row g-3">
+                                        <div class="col-12">
+                                            <label class="form-label fw-semibold">Customer</label>
+                                            <div class="input-group mb-2">
+                                                <input class="form-control" placeholder="Search customers by name or phone"
+                                                       value="@CustomerSearchText"
+                                                       @oninput="@(async e => await OnCustomerSearchChangedAsync(e))" />
+                                                <button type="button" class="btn btn-outline-secondary"
+                                                        @onclick="OpenCustomerModal">
+                                                    New customer
+                                                </button>
+                                            </div>
+                                            <div class="form-text">Select an existing customer to attach this invoice. Leave blank
+                                                for a walk-in sale.</div>
 
-                                                @if (item.InventoryItemId.HasValue)
+                                                @if (SelectedCustomer != null)
                                                 {
-                                                    <div class="invoice-item-selection mt-2">
-                                                        <span class="badge text-bg-light border">Linked to inventory</span>
-                                                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => ClearInventorySelection(item)">
-                                                            Clear selection
-                                                        </button>
+                                                    <div class="alert alert-info d-flex align-items-center justify-content-between mt-3">
+                                                        <div>
+                                                            <strong>@SelectedCustomer.Name</strong>
+                                                            <div class="small text-muted">@SelectedCustomer.PhoneNumber</div>
+                                                            <div class="small text-muted">@GetTypeLabel(SelectedCustomer.Type)</div>
+                                                        </div>
+                                                        <div class="d-flex gap-2">
+                                                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                                                    @onclick="ViewSelectedCustomer">
+                                                                View
+                                                            </button>
+                                                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                                                    @onclick="ClearSelectedCustomer">
+                                                                Clear
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 }
 
-                                                @if (IsInventoryLookupLoading(item))
+                                                @if (IsCustomerLookupLoading)
                                                 {
-                                                    <div class="small text-muted mt-2">Searching inventory...</div>
+                                                    <div class="small text-muted mt-2">Searching customers...</div>
                                                 }
-                                                else if (GetInventorySearchResults(item).Count > 0)
+                                                else if (!string.IsNullOrWhiteSpace(CustomerSearchText) && CustomerSearchResults.Any())
                                                 {
                                                     <div class="invoice-search-results mt-2">
-                                                        @foreach (var suggestion in GetInventorySearchResults(item))
+                                                        @foreach (var customer in CustomerSearchResults)
                                                         {
-                                                            <button type="button" class="invoice-search-result" @onclick="() => ApplyInventorySelection(item, suggestion)">
-                                                                <span class="fw-semibold">@suggestion.Description</span>
-                                                                <span class="text-muted small">HSN: @suggestion.HsnCode | Batch: @suggestion.Batch | Rate: @suggestion.Rate.ToString("C")</span>
-                                                            </button>
-                                                        }
-                                                    </div>
-                                                }
-                                            </div>
-
-                                            <div class="col-12 col-lg-4">
-                                                <label class="form-label fw-semibold">Description</label>
-                                                <InputText class="form-control" @bind-Value="item.Description" />
-                                            </div>
-                                            <div class="col-6 col-lg-2">
-                                                <label class="form-label fw-semibold">HSN/SAC</label>
-                                                <InputText class="form-control" @bind-Value="item.HsnCode" />
-                                            </div>
-                                            <div class="col-6 col-lg-2">
-                                                <label class="form-label fw-semibold">Package</label>
-                                                <InputSelect class="form-select" @bind-Value="item.Package">
-                                                    <option value="">Select</option>
-                                                    @foreach (var pkg in Enum.GetValues<PackageType>())
-                                                    {
-                                                        <option value="@pkg">@pkg</option>
+                                                            <button type="button" class="invoice-search-result"
+                                                                    @onclick="() => SelectCustomer(customer)">
+                                                                <span class="fw-semibold">@customer.Name</span>
+                                                                <span class="text-muted small">@customer.PhoneNumber —
+                                                                    @GetTypeLabel(customer.Type)</span>
+                                                                </button>
+                                                            }
+                                                        </div>
                                                     }
-                                                </InputSelect>
-                                            </div>
-                                            <div class="col-12 col-lg-4">
-                                                <label class="form-label fw-semibold">Manufacturer</label>
-                                                <InputText class="form-control" @bind-Value="item.Mfg" />
-                                            </div>
-                                            <div class="col-6 col-lg-1">
-                                                <label class="form-label fw-semibold">Qty</label>
-                                                <InputNumber class="form-control" @bind-Value="item.Quantity" />
-                                            </div>
-                                            <div class="col-6 col-lg-3">
-                                                <label class="form-label fw-semibold">Batch</label>
-                                                <InputText class="form-control" @bind-Value="item.Batch" />
-                                            </div>
-                                            <div class="col-6 col-lg-2">
-                                                <label class="form-label fw-semibold">Expiry</label>
-                                                <InputText class="form-control" @bind-Value="item.ExpiryDate" />
-                                            </div>
-                                            <div class="col-6 col-lg-2">
-                                                <label class="form-label fw-semibold">Rate</label>
-                                                <InputNumber class="form-control" @bind-Value="item.Rate" step="0.01" />
-                                            </div>
-                                            <div class="col-6 col-lg-2">
-                                                <label class="form-label fw-semibold">GST %</label>
-                                                <InputNumber class="form-control" @bind-Value="item.GstPercentage" step="0.01" />
-                                            </div>
-                                            <div class="col-6 col-lg-4">
-                                                <div class="invoice-line-total">
-                                                    <span class="text-muted small text-uppercase fw-semibold">Line total</span>
-                                                    <div class="fs-5 fw-bold">@LineTotal(item).ToString("C")</div>
+                                                </div>
+
+                                                <div class="col-md-6">
+                                                    <label class="form-label fw-semibold">Patient name</label>
+                                                    @if (SelectedCustomer != null)
+                                                    {
+                                                        <input class="form-control form-control-lg" value="@SelectedCustomer.Name" disabled />
+                                                    }
+                                                    else
+                                                    {
+                                                        <InputText class="form-control form-control-lg" @bind-Value="Invoice.PatientName" />
+                                                    }
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label fw-semibold">Doctor name</label>
+                                                    <InputText class="form-control form-control-lg" @bind-Value="Invoice.DoctorName" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label fw-semibold">Invoice date</label>
+                                                    <InputDate class="form-control form-control-lg" @bind-Value="Invoice.Date" />
+                                                </div>
+                                                <div class="col-md-8">
+                                                    <label class="form-label fw-semibold">Invoice number</label>
+                                                    <InputText class="form-control form-control-lg" @bind-Value="Invoice.InvoiceNumber"
+                                                               disabled="@(IsEdit || !string.IsNullOrWhiteSpace(Invoice.InvoiceNumber))" />
+                                                    <div class="form-text">Leave blank to generate a new invoice number automatically.</div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </section>
-                                }
-                            </div>
-                        </section>
-                    </div>
+                                        </section>
 
-                    <div class="col-12 col-xl-4">
-                        <div class="invoice-sidebar">
-                            <section class="invoice-panel invoice-summary-panel">
-                                <div class="invoice-panel-header">
-                                    <div>
-                                        <h3 class="h5 mb-1">Summary</h3>
-                                        <p class="text-muted mb-0">Review totals before saving the invoice.</p>
+                                        @if (ShowCustomerModal)
+                                        {
+                                            <div class="modal-backdrop fade show"></div>
+                                            <div class="modal d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+                                                <div class="modal-dialog modal-lg modal-dialog-centered">
+                                                    <div class="modal-content">
+                                                        <div class="modal-header">
+                                                            <h5 class="modal-title">Create new customer</h5>
+                                                            <button type="button" class="btn-close" @onclick="CloseCustomerModal"></button>
+                                                        </div>
+                                                        <div class="modal-body">
+                                                            @if (CustomerModalErrors.Any())
+                                                            {
+                                                                <div class="alert alert-danger">
+                                                                    <ul class="mb-0">
+                                                                        @foreach (var error in CustomerModalErrors)
+                                                                        {
+                                                                            <li>@error</li>
+                                                                        }
+                                                                    </ul>
+                                                                </div>
+                                                            }
+
+                                                            <div class="mb-3">
+                                                                <label class="form-label">Name</label>
+                                                                <InputText class="form-control" @bind-Value="NewCustomerModel.Name" />
+                                                            </div>
+                                                            <div class="mb-3">
+                                                                <label class="form-label">Phone</label>
+                                                                <InputText class="form-control" @bind-Value="NewCustomerModel.PhoneNumber" />
+                                                            </div>
+                                                            <div class="mb-3">
+                                                                <label class="form-label">Email</label>
+                                                                <InputText class="form-control" @bind-Value="NewCustomerModel.Email" />
+                                                            </div>
+                                                            <div class="mb-3">
+                                                                <label class="form-label">Customer type</label>
+                                                                <InputSelect class="form-select" @bind-Value="NewCustomerModel.Type">
+                                                                    <option value="0">Walk-In</option>
+                                                                    <option value="1">Registered</option>
+                                                                    <option value="2">Corporate</option>
+                                                                </InputSelect>
+                                                            </div>
+
+                                                            @if (NewCustomerModel.RequiresAddress)
+                                                            {
+                                                                <div class="mb-3">
+                                                                    <label class="form-label">Billing address</label>
+                                                                    <InputText class="form-control mb-2" placeholder="Line 1"
+                                                                               @bind-Value="NewCustomerModel.Address.Street" />
+                                                                    <InputText class="form-control mb-2" placeholder="Line 2"
+                                                                               @bind-Value="NewCustomerModel.Address.Street2" />
+                                                                    <div class="row g-2">
+                                                                        <div class="col-6">
+                                                                            <InputText class="form-control" placeholder="City"
+                                                                                       @bind-Value="NewCustomerModel.Address.City" />
+                                                                        </div>
+                                                                        <div class="col-6">
+                                                                            <InputText class="form-control" placeholder="State"
+                                                                                       @bind-Value="NewCustomerModel.Address.State" />
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="row g-2 mt-2">
+                                                                        <div class="col-6">
+                                                                            <InputText class="form-control" placeholder="Postal code"
+                                                                                       @bind-Value="NewCustomerModel.Address.PostalCode" />
+                                                                        </div>
+                                                                        <div class="col-6">
+                                                                            <InputText class="form-control" placeholder="Country"
+                                                                                       @bind-Value="NewCustomerModel.Address.Country" />
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            }
+
+                                                            @if (NewCustomerModel.RequiresPatientInfo)
+                                                            {
+                                                                <div class="mb-3">
+                                                                    <label class="form-label">Patient info</label>
+                                                                    <div class="row g-2">
+                                                                        <div class="col-4">
+                                                                            <InputNumber class="form-control" placeholder="Age"
+                                                                                         @bind-Value="NewCustomerModel.Age" />
+                                                                        </div>
+                                                                        <div class="col-4">
+                                                                            <InputSelect class="form-select" @bind-Value="NewCustomerModel.Gender">
+                                                                                <option value="">Gender</option>
+                                                                                <option value="M">Male</option>
+                                                                                <option value="F">Female</option>
+                                                                                <option value="O">Other</option>
+                                                                            </InputSelect>
+                                                                        </div>
+                                                                        <div class="col-4">
+                                                                            <InputText class="form-control" placeholder="Doctor"
+                                                                                       @bind-Value="NewCustomerModel.DoctorName" />
+                                                                        </div>
+                                                                    </div>
+                                                                    @if (NewCustomerModel.Type == CustomerType.Corporate)
+                                                                    {
+                                                                        <div class="mt-2">
+                                                                            <InputText class="form-control" placeholder="GSTIN"
+                                                                                       @bind-Value="NewCustomerModel.GSTIN" />
+                                                                        </div>
+                                                                    }
+                                                                    <div class="mt-2">
+                                                                        <InputTextArea class="form-control" placeholder="Medical notes"
+                                                                                       @bind-Value="NewCustomerModel.MedicalNotes" Rows="3" />
+                                                                    </div>
+                                                                </div>
+                                                            }
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-outline-secondary"
+                                                                    @onclick="CloseCustomerModal">Cancel</button>
+                                                            <button type="button" class="btn btn-primary" @onclick="CreateCustomerFromModal"
+                                                                    disabled="@IsCreatingCustomer">
+                                                                @(IsCreatingCustomer ? "Creating..." : "Create and assign")
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+
+                                        @if (ValidationErrors.Any())
+                                        {
+                                            <div class="alert alert-danger shadow-sm border-0 mb-4" role="alert">
+                                                <div class="fw-semibold mb-2">Please review these issues before saving.</div>
+                                                <ul class="mb-0 ps-3">
+                                                    @foreach (var error in ValidationErrors)
+                                                    {
+                                                        <li>@error</li>
+                                                    }
+                                                </ul>
+                                                @if (ValidationErrors.Any(e => e.Contains("modified elsewhere")))
+                                                {
+                                                    <button type="button" class="btn btn-sm btn-outline-danger mt-3" @onclick="ReloadInvoice">
+                                                        Refresh latest invoice data
+                                                    </button>
+                                                }
+                                            </div>
+                                        }
+
+                                        <section class="invoice-panel">
+                                            <div class="invoice-panel-header invoice-items-header">
+                                                <div>
+                                                    <h3 class="h5 mb-1">Line items</h3>
+                                                    <p class="text-muted mb-0">Add medicines and charges with clear fields for quantity,
+                                                        rate, and GST.</p>
+                                                    </div>
+                                                    <button type="button" class="btn btn-primary" @onclick="AddItem">Add line item</button>
+                                                </div>
+
+                                                <div class="d-grid gap-3">
+                                                    @for (var index = 0; index < Invoice.Items.Count; index++)
+                                                    {
+                                                        var item = Invoice.Items[index];
+                                                        <section @key="item.Id" class="invoice-item-card">
+                                                            <div class="invoice-item-topbar">
+                                                                <div>
+                                                                    <span class="badge text-bg-light border">Item @(index + 1)</span>
+                                                                </div>
+                                                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                                                        @onclick="() => RemoveItem(item)">Remove</button>
+                                                            </div>
+
+                                                            <div class="row g-3">
+                                                                <div class="col-12">
+                                                                    <label class="form-label fw-semibold">Inventory item <span
+                                                                        class="fw-normal text-muted">(optional)</span></label>
+                                                                        <input class="form-control"
+                                                                               placeholder="Search inventory by item, HSN code, batch, or manufacturer"
+                                                                               value="@GetInventorySearchText(item)"
+                                                                               @oninput="@(async e => await OnInventorySearchChangedAsync(item, e))" />
+                                                                        <div class="form-text">Select an inventory item to auto-fill this line, or skip
+                                                                            it and enter the item manually.</div>
+
+                                                                            @if (item.InventoryItemId.HasValue)
+                                                                            {
+                                                                                <div class="invoice-item-selection mt-2">
+                                                                                    <span class="badge text-bg-light border">Linked to inventory</span>
+                                                                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                                                            @onclick="() => ClearInventorySelection(item)">
+                                                                                        Clear selection
+                                                                                    </button>
+                                                                                </div>
+                                                                            }
+
+                                                                            @if (IsInventoryLookupLoading(item))
+                                                                            {
+                                                                                <div class="small text-muted mt-2">Searching inventory...</div>
+                                                                            }
+                                                                            else if (GetInventorySearchResults(item).Count > 0)
+                                                                            {
+                                                                                <div class="invoice-search-results mt-2">
+                                                                                    @foreach (var suggestion in GetInventorySearchResults(item))
+                                                                                    {
+                                                                                        <button type="button" class="invoice-search-result"
+                                                                                                @onclick="() => ApplyInventorySelection(item, suggestion)">
+                                                                                            <span class="fw-semibold">@suggestion.Description</span>
+                                                                                            <span class="text-muted small">HSN: @suggestion.HsnCode | Batch:
+                                                                                                @suggestion.Batch | Rate: @suggestion.Rate.ToString("C")</span>
+                                                                                            </button>
+                                                                                        }
+                                                                                    </div>
+                                                                                }
+                                                                            </div>
+
+                                                                            <div class="col-12 col-lg-4">
+                                                                                <label class="form-label fw-semibold">Description</label>
+                                                                                <InputText class="form-control" @bind-Value="item.Description" />
+                                                                            </div>
+                                                                            <div class="col-6 col-lg-2">
+                                                                                <label class="form-label fw-semibold">HSN/SAC</label>
+                                                                                <InputText class="form-control" @bind-Value="item.HsnCode" />
+                                                                            </div>
+                                                                            <div class="col-6 col-lg-2">
+                                                                                <label class="form-label fw-semibold">Package</label>
+                                                                                <InputSelect class="form-select" @bind-Value="item.Package">
+                                                                                    <option value="">Select</option>
+                                                                                    @foreach (var pkg in Enum.GetValues<PackageType>())
+                                                                                    {
+                                                                                        <option value="@pkg">@pkg</option>
+                                                                                    }
+                                                                                </InputSelect>
+                                                                            </div>
+                                                                            <div class="col-12 col-lg-4">
+                                                                                <label class="form-label fw-semibold">Manufacturer</label>
+                                                                                <InputText class="form-control" @bind-Value="item.Mfg" />
+                                                                            </div>
+                                                                            <div class="col-6 col-lg-1">
+                                                                                <label class="form-label fw-semibold">Qty</label>
+                                                                                <InputNumber class="form-control" @bind-Value="item.Quantity" />
+                                                                            </div>
+                                                                            <div class="col-6 col-lg-3">
+                                                                                <label class="form-label fw-semibold">Batch</label>
+                                                                                <InputText class="form-control" @bind-Value="item.Batch" />
+                                                                            </div>
+                                                                            <div class="col-6 col-lg-2">
+                                                                                <label class="form-label fw-semibold">Expiry</label>
+                                                                                <InputText class="form-control" @bind-Value="item.ExpiryDate" />
+                                                                            </div>
+                                                                            <div class="col-6 col-lg-2">
+                                                                                <label class="form-label fw-semibold">Rate</label>
+                                                                                <InputNumber class="form-control" @bind-Value="item.Rate" step="0.01" />
+                                                                            </div>
+                                                                            <div class="col-6 col-lg-2">
+                                                                                <label class="form-label fw-semibold">GST %</label>
+                                                                                <InputNumber class="form-control" @bind-Value="item.GstPercentage"
+                                                                                             step="0.01" />
+                                                                            </div>
+                                                                            <div class="col-6 col-lg-4">
+                                                                                <div class="invoice-line-total">
+                                                                                    <span class="text-muted small text-uppercase fw-semibold">Line total</span>
+                                                                                    <div class="fs-5 fw-bold">@LineTotal(item).ToString("C")</div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </section>
+                                                                }
+                                                            </div>
+                                                        </section>
+                                                    </div>
+
+                                                    <div class="col-12 col-xl-4">
+                                                        <div class="invoice-sidebar">
+                                                            <section class="invoice-panel invoice-summary-panel">
+                                                                <div class="invoice-panel-header">
+                                                                    <div>
+                                                                        <h3 class="h5 mb-1">Summary</h3>
+                                                                        <p class="text-muted mb-0">Review totals before saving the invoice.</p>
+                                                                    </div>
+                                                                </div>
+
+                                                                <dl class="invoice-summary-list mb-0">
+                                                                    <div>
+                                                                        <dt>Subtotal</dt>
+                                                                        <dd>@Invoice.GrossTotal.ToString("C")</dd>
+                                                                    </div>
+                                                                    <div>
+                                                                        <dt>GST</dt>
+                                                                        <dd>@Invoice.TotalGst.ToString("C")</dd>
+                                                                    </div>
+                                                                    <div class="invoice-summary-total">
+                                                                        <dt>Total</dt>
+                                                                        <dd>@Invoice.NetTotal.ToString("C")</dd>
+                                                                    </div>
+                                                                </dl>
+                                                            </section>
+
+                                                            <section class="invoice-panel invoice-actions-panel">
+                                                                <div class="d-grid gap-2">
+                                                                    <button type="submit" class="btn btn-primary btn-lg" disabled="@IsSaving">
+                                                                        @(IsSaving ? "Saving..." : "Save invoice")
+                                                                    </button>
+                                                                    <button type="button" class="btn btn-outline-secondary"
+                                                                            @onclick="BackToList">Cancel</button>
+                                                                </div>
+                                                            </section>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </EditForm>
+                                        }
                                     </div>
                                 </div>
-
-                                <dl class="invoice-summary-list mb-0">
-                                    <div>
-                                        <dt>Subtotal</dt>
-                                        <dd>@Invoice.GrossTotal.ToString("C")</dd>
-                                    </div>
-                                    <div>
-                                        <dt>GST</dt>
-                                        <dd>@Invoice.TotalGst.ToString("C")</dd>
-                                    </div>
-                                    <div class="invoice-summary-total">
-                                        <dt>Total</dt>
-                                        <dd>@Invoice.NetTotal.ToString("C")</dd>
-                                    </div>
-                                </dl>
-                            </section>
-
-                            <section class="invoice-panel invoice-actions-panel">
-                                <div class="d-grid gap-2">
-                                    <button type="submit" class="btn btn-primary btn-lg" disabled="@IsSaving">
-                                        @(IsSaving ? "Saving..." : "Save invoice")
-                                    </button>
-                                    <button type="button" class="btn btn-outline-secondary" @onclick="BackToList">Cancel</button>
-                                </div>
-                            </section>
-                        </div>
-                    </div>
-                </div>
-            </EditForm>
-        }
-    </div>
-</div>
 
 @code {
     [Parameter]
@@ -254,6 +454,14 @@
     private CreateInvoiceDto Invoice = new();
     private List<string> ValidationErrors = new();
     private InvoiceDetailDto? ExistingInvoice;
+    private CustomerDto? SelectedCustomer;
+    private string CustomerSearchText = string.Empty;
+    private List<CustomerDto> CustomerSearchResults = new();
+    private bool IsCustomerLookupLoading = false;
+    private bool ShowCustomerModal = false;
+    private bool IsCreatingCustomer = false;
+    private List<string> CustomerModalErrors = new();
+    private NewCustomerModalModel NewCustomerModel = new();
     private readonly Dictionary<Guid, string> InventorySearchText = new();
     private readonly Dictionary<Guid, List<InventoryItemDto>> InventorySearchResults = new();
     private readonly HashSet<Guid> InventoryLookupLoading = [];
@@ -272,6 +480,16 @@
             {
                 // 🔥 IMPORTANT: ensure RowVersion is mapped inside this method
                 Invoice = InvoiceDetailDto.ToCreateInvoiceDto(ExistingInvoice);
+
+                if (ExistingInvoice.CustomerId.HasValue)
+                {
+                    SelectedCustomer = await CustomerService.GetCustomerByIdAsync(ExistingInvoice.CustomerId.Value);
+                    if (SelectedCustomer != null)
+                    {
+                        Invoice.CustomerId = SelectedCustomer.Id;
+                        Invoice.PatientName = SelectedCustomer.Name;
+                    }
+                }
             }
         }
 
@@ -307,6 +525,12 @@
         {
             Guid resultId;
 
+            if (SelectedCustomer != null)
+            {
+                Invoice.CustomerId = SelectedCustomer.Id;
+                Invoice.PatientName = SelectedCustomer.Name;
+            }
+
             if (IsEdit)
             {
                 if (Invoice.RowVersion == null)
@@ -318,6 +542,7 @@
                     Date = Invoice.Date,
                     DoctorName = Invoice.DoctorName,
                     PatientName = Invoice.PatientName,
+                    CustomerId = Invoice.CustomerId,
                     InvoiceNumber = Invoice.InvoiceNumber,
                     RowVersion = Invoice.RowVersion,
 
@@ -390,6 +615,16 @@
             // 🔥 IMPORTANT: must preserve RowVersion again
             Invoice = InvoiceDetailDto.ToCreateInvoiceDto(latest);
             SyncInventoryPickerState();
+
+            if (latest.CustomerId.HasValue)
+            {
+                SelectedCustomer = await CustomerService.GetCustomerByIdAsync(latest.CustomerId.Value);
+                if (SelectedCustomer != null)
+                {
+                    Invoice.CustomerId = SelectedCustomer.Id;
+                    Invoice.PatientName = SelectedCustomer.Name;
+                }
+            }
         }
         finally
         {
@@ -410,7 +645,7 @@
             ExpiryDate = string.Empty,
             Quantity = 1,
             Rate = 0,
-                GstPercentage = 5
+            GstPercentage = 5
         });
 
         SyncInventoryPickerState();
@@ -440,9 +675,156 @@
         SyncInventoryPickerState();
     }
 
+    private async Task OnCustomerSearchChangedAsync(ChangeEventArgs args)
+    {
+        CustomerSearchText = args.Value?.ToString() ?? string.Empty;
+        CustomerSearchResults.Clear();
+
+        var normalized = CustomerSearchText.Trim();
+        if (normalized.Length < 2)
+        {
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        IsCustomerLookupLoading = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var results = await CustomerService.SearchCustomersByNameAsync(normalized, 1, 8);
+            CustomerSearchResults = results.Customers.ToList();
+        }
+        finally
+        {
+            IsCustomerLookupLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void SelectCustomer(CustomerDto customer)
+    {
+        SelectedCustomer = customer;
+        Invoice.CustomerId = customer.Id;
+        Invoice.PatientName = customer.Name;
+        CustomerSearchResults.Clear();
+        CustomerSearchText = customer.Name;
+    }
+
+    private void ClearSelectedCustomer()
+    {
+        SelectedCustomer = null;
+        Invoice.CustomerId = null;
+    }
+
+    private void OpenCustomerModal()
+    {
+        ShowCustomerModal = true;
+        CustomerModalErrors.Clear();
+        NewCustomerModel = new NewCustomerModalModel();
+    }
+
+    private void CloseCustomerModal()
+    {
+        ShowCustomerModal = false;
+        CustomerModalErrors.Clear();
+    }
+
+    private void ViewSelectedCustomer()
+    {
+        if (SelectedCustomer != null)
+        {
+            Navigation.NavigateTo($"/customers/{SelectedCustomer.Id}");
+        }
+    }
+
+    private async Task CreateCustomerFromModal()
+    {
+        CustomerModalErrors.Clear();
+        IsCreatingCustomer = true;
+
+        try
+        {
+            var dto = new CreateCustomerDto
+            {
+                Name = NewCustomerModel.Name,
+                PhoneNumber = NewCustomerModel.PhoneNumber,
+                Email = NewCustomerModel.Email,
+                Type = (int)NewCustomerModel.Type,
+                BillingAddress = NewCustomerModel.RequiresAddress ? NewCustomerModel.Address : null,
+                PatientInfo = NewCustomerModel.RequiresPatientInfo
+                    ? new PatientInfoDto
+                    {
+                        Age = NewCustomerModel.Age,
+                        Gender = string.IsNullOrWhiteSpace(NewCustomerModel.Gender) ? null : NewCustomerModel.Gender![0],
+                        GSTIN = NewCustomerModel.GSTIN,
+                        DoctorName = NewCustomerModel.DoctorName,
+                        MedicalNotes = NewCustomerModel.MedicalNotes
+                    }
+                    : null
+            };
+
+            var newCustomerId = await CustomerService.CreateCustomerAsync(dto);
+            var createdCustomer = await CustomerService.GetCustomerByIdAsync(newCustomerId);
+
+            if (createdCustomer == null)
+            {
+                throw new Exception("Customer was created but could not be loaded.");
+            }
+
+            SelectCustomer(createdCustomer);
+            CloseCustomerModal();
+        }
+        catch (FluentValidation.ValidationException vex)
+        {
+            CustomerModalErrors = vex.Errors
+                .Select(e => string.IsNullOrWhiteSpace(e.PropertyName)
+                    ? e.ErrorMessage
+                    : $"{e.PropertyName}: {e.ErrorMessage}")
+                .Distinct()
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            CustomerModalErrors.Add(ex.Message);
+        }
+        finally
+        {
+            IsCreatingCustomer = false;
+        }
+    }
+
+    private string GetTypeLabel(int type)
+    {
+        return type switch
+        {
+            0 => "Walk-In",
+            1 => "Registered",
+            2 => "Corporate",
+            _ => "Unknown"
+        };
+    }
+
     private decimal LineTotal(InvoiceItemDto item)
     {
         return item.Quantity * item.Rate;
+    }
+
+    private class NewCustomerModalModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string? PhoneNumber { get; set; }
+        public string? Email { get; set; }
+        public CustomerType Type { get; set; } = CustomerType.WalkIn;
+        public AddressDto Address { get; set; } = new AddressDto();
+        public int? Age { get; set; }
+        public string? Gender { get; set; }
+        public string? GSTIN { get; set; }
+        public string? DoctorName { get; set; }
+        public string? MedicalNotes { get; set; }
+
+        public bool RequiresAddress => Type == CustomerType.Registered || Type == CustomerType.Corporate;
+        public bool RequiresPatientInfo => Type == CustomerType.Registered || Type == CustomerType.Corporate;
     }
 
     private string GetInventorySearchText(InvoiceItemDto item)
