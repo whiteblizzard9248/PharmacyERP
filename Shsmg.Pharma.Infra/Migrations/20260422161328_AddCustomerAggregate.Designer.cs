@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Shsmg.Pharma.Infra.Persistence;
@@ -11,9 +12,11 @@ using Shsmg.Pharma.Infra.Persistence;
 namespace Shsmg.Pharma.Infra.Migrations
 {
     [DbContext(typeof(PharmacyDbContext))]
-    partial class PharmacyDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260422161328_AddCustomerAggregate")]
+    partial class AddCustomerAggregate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -829,12 +832,6 @@ namespace Shsmg.Pharma.Infra.Migrations
                                 .HasColumnType("character varying(200)")
                                 .HasColumnName("PatientDoctorName");
 
-                            b1.Property<bool>("Exists")
-                                .ValueGeneratedOnAdd()
-                                .HasColumnType("boolean")
-                                .HasDefaultValue(true)
-                                .HasColumnName("PatientExists");
-
                             b1.Property<string>("GSTIN")
                                 .HasMaxLength(15)
                                 .HasColumnType("character varying(15)")
@@ -875,12 +872,10 @@ namespace Shsmg.Pharma.Infra.Migrations
 
             modelBuilder.Entity("Shsmg.Pharma.Domain.Models.Invoice", b =>
                 {
-                    b.HasOne("Shsmg.Pharma.Domain.Models.Customer", "Customer")
+                    b.HasOne("Shsmg.Pharma.Domain.Models.Customer", null)
                         .WithMany("Invoices")
                         .HasForeignKey("CustomerId")
                         .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Customer");
                 });
 
             modelBuilder.Entity("Shsmg.Pharma.Domain.Models.InvoiceItem", b =>

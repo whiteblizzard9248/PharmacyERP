@@ -13,6 +13,7 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options, RowV
     public DbSet<InvoiceAuditLog> InvoiceAuditLogs { get; set; }
     public DbSet<InvoiceItem> InvoiceItems { get; set; }
     public DbSet<InventoryItem> InventoryItems { get; set; }
+    public DbSet<Customer> Customers { get; set; }
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.AddInterceptors(rowVersionInterceptor);
@@ -110,6 +111,89 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options, RowV
             entity.HasQueryFilter(e => !e.IsDeleted);
         });
 
+        // 5. Customer Configuration - DDD Aggregate Root
+        builder.Entity<Customer>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            // Core properties
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.PhoneNumber).HasMaxLength(20);
+            entity.Property(e => e.Email).HasMaxLength(255);
+            entity.Property(e => e.Type).HasDefaultValue(CustomerType.WalkIn);
+
+            // Financial tracking
+            entity.Property(e => e.CreditLimit).HasPrecision(12, 2).HasDefaultValue(0m);
+            entity.Property(e => e.OutstandingAmount).HasPrecision(12, 2).HasDefaultValue(0m);
+            entity.Property(e => e.LifetimeValue).HasPrecision(12, 2).HasDefaultValue(0m);
+
+            // Blacklist
+            entity.Property(e => e.IsBlacklisted).HasDefaultValue(false);
+            entity.Property(e => e.BlacklistReason).HasMaxLength(500);
+
+            // Owned value objects: Address (BillingAddress)
+            entity.OwnsOne(e => e.BillingAddress, addr =>
+            {
+                addr.Property(a => a.Street).HasColumnName("BillingStreet").IsRequired().HasMaxLength(250);
+                addr.Property(a => a.Street2).HasColumnName("BillingStreet2").HasMaxLength(250);
+                addr.Property(a => a.City).HasColumnName("BillingCity").IsRequired().HasMaxLength(100);
+                addr.Property(a => a.State).HasColumnName("BillingState").IsRequired().HasMaxLength(100);
+                addr.Property(a => a.PostalCode).HasColumnName("BillingPostalCode").IsRequired().HasMaxLength(10);
+                addr.Property(a => a.Country).HasColumnName("BillingCountry").IsRequired().HasMaxLength(100);
+                addr.Property(a => a.Latitude).HasColumnName("BillingLatitude");
+                addr.Property(a => a.Longitude).HasColumnName("BillingLongitude");
+            });
+
+            // Owned value objects: Address (ShippingAddress)
+            entity.OwnsOne(e => e.ShippingAddress, addr =>
+            {
+                addr.Property(a => a.Street).HasColumnName("ShippingStreet").HasMaxLength(250);
+                addr.Property(a => a.Street2).HasColumnName("ShippingStreet2").HasMaxLength(250);
+                addr.Property(a => a.City).HasColumnName("ShippingCity").HasMaxLength(100);
+                addr.Property(a => a.State).HasColumnName("ShippingState").HasMaxLength(100);
+                addr.Property(a => a.PostalCode).HasColumnName("ShippingPostalCode").HasMaxLength(10);
+                addr.Property(a => a.Country).HasColumnName("ShippingCountry").HasMaxLength(100);
+                addr.Property(a => a.Latitude).HasColumnName("ShippingLatitude");
+                addr.Property(a => a.Longitude).HasColumnName("ShippingLongitude");
+            });
+
+            // Owned value objects: PatientInfo
+            entity.OwnsOne(e => e.PatientInfo, pi =>
+            {
+                pi.Property(p => p.Age).HasColumnName("PatientAge");
+                pi.Property(p => p.Gender).HasColumnName("PatientGender").HasMaxLength(1);
+                pi.Property(p => p.GSTIN).HasColumnName("PatientGSTIN").HasMaxLength(15);
+                pi.Property(p => p.AadharNumber).HasColumnName("PatientAadharNumber").HasMaxLength(12);
+                pi.Property(p => p.PanNumber).HasColumnName("PatientPANNumber").HasMaxLength(10);
+                pi.Property(p => p.DoctorName).HasColumnName("PatientDoctorName").HasMaxLength(200);
+                pi.Property(p => p.MedicalNotes).HasColumnName("PatientMedicalNotes").HasColumnType("text");
+                pi.Property(p => p.LastUpdatedAt).HasColumnName("PatientLastUpdatedAt");
+                pi.Property(p => p.Exists).HasColumnName("PatientExists").HasDefaultValue(true).IsRequired();
+            });
+
+            // Indexes for performance
+            entity.HasIndex(e => e.PhoneNumber);
+            entity.HasIndex(e => e.Name);
+            entity.HasIndex(e => e.Type);
+            entity.HasIndex(e => e.Email);
+            entity.HasIndex(e => e.IsBlacklisted);
+            entity.HasIndex(e => e.OutstandingAmount);
+            entity.HasIndex(e => e.LastPurchaseDate);
+
+            // Composite index for "customer found" workflow
+            entity.HasIndex(e => new { e.PhoneNumber, e.Type });
+
+            // Soft Delete Filter
+            entity.HasQueryFilter(e => !e.IsDeleted);
+
+            // Relationship to invoices
+            entity.HasMany(c => c.Invoices)
+                  .WithOne(i => i.Customer)
+                  .HasForeignKey(i => i.CustomerId)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // 6. InventoryItem Configuration
         builder.Entity<InventoryItem>(entity =>
         {
             entity.HasKey(e => e.Id);

@@ -4,7 +4,7 @@
 
 @using Shsmg.Pharma.Application.Common
 @using Shsmg.Pharma.Application.Services
-@inject Shsmg.Pharma.Application.Services.IUserService UserService
+@inject Shsmg.Pharma.Application.Common.IUserService UserService
 @inject NavigationManager Navigation
 @inject Shsmg.Pharma.WebUI.Services.PermissionService PermissionService
 @rendermode InteractiveServer
@@ -42,20 +42,23 @@
                         <div class="user-form-panel-header">
                             <div>
                                 <h3 class="h5 mb-1">Account details</h3>
-                                <p class="text-muted mb-0">Set the login email and, for new users, an initial password.</p>
+                                <p class="text-muted mb-0">Set the login email and, for new users, an initial password.
+                                </p>
                             </div>
                         </div>
 
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold">Email</label>
-                                <InputText class="form-control form-control-lg" @bind-Value="UserModel.Email" disabled="@IsEdit" />
+                                <InputText class="form-control form-control-lg" @bind-Value="UserModel.Email"
+                                           disabled="@IsEdit" />
                             </div>
                             @if (!IsEdit)
                             {
                                 <div class="col-md-6">
                                     <label class="form-label fw-semibold">Password</label>
-                                    <InputText type="password" class="form-control form-control-lg" @bind-Value="UserModel.Password" />
+                                    <InputText type="password" class="form-control form-control-lg"
+                                               @bind-Value="UserModel.Password" />
                                 </div>
                             }
                         </div>
@@ -75,9 +78,7 @@
                                 <div class="col-md-6 col-xl-4">
                                     <label class="user-role-card" for="@role">
                                         <div class="form-check m-0">
-                                            <InputCheckbox class="form-check-input"
-                                                           id="@role"
-                                                           Value="GetRoleValue(role)"
+                                            <InputCheckbox class="form-check-input" id="@role" Value="GetRoleValue(role)"
                                                            ValueChanged="@(v => SetRoleValue(role, v))"
                                                            ValueExpression="() => UserModel.SelectedRoles[role]" />
                                             <span class="form-check-label fw-semibold">@role</span>
@@ -93,17 +94,19 @@
                 <div class="col-12 col-xl-4">
                     <aside class="user-form-sidecard">
                         <h3 class="h5 mb-3">Summary</h3>
-                        <p class="text-muted mb-4">Keep account setup simple and assign only the roles this team member needs.</p>
-                        <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-primary btn-lg">@(IsEdit ? "Update User" : "Create User")</button>
-                            <button type="button" class="btn btn-outline-secondary" @onclick="BackToUsers">Cancel</button>
-                        </div>
-                    </aside>
+                        <p class="text-muted mb-4">Keep account setup simple and assign only the roles this team member
+                            needs.</p>
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary btn-lg">@(IsEdit ? "Update User" : "Create User")</button>
+                                <button type="button" class="btn btn-outline-secondary"
+                                        @onclick="BackToUsers">Cancel</button>
+                            </div>
+                        </aside>
+                    </div>
                 </div>
-            </div>
-        </EditForm>
+            </EditForm>
+        </div>
     </div>
-</div>
 
 @code {
     [Parameter] public string? UserId { get; set; }
@@ -156,11 +159,11 @@
             var selectedRoles = UserModel.SelectedRoles.Where(kv => kv.Value).Select(kv => kv.Key).ToArray();
             if (IsEdit)
             {
-                await UserService.UpdateUserAsync(UserId!, UserModel.Email, selectedRoles);
+                await UserService.UpdateUserAsync(UserId!, UserModel.Email, selectedRoles.ToList());
             }
             else
             {
-                await UserService.CreateUserAsync(UserModel.Email, UserModel.Password, selectedRoles);
+                await UserService.CreateUserAsync(UserModel.Email, UserModel.Password, selectedRoles.ToList());
             }
             Navigation.NavigateTo("/users");
         }

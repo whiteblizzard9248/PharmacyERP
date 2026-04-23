@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using FluentValidation;
+using FluentValidation.Results;
 using Shsmg.Pharma.Application.Common;
 using Shsmg.Pharma.Application.DTOs;
 using Shsmg.Pharma.Domain.Models;
@@ -12,11 +13,13 @@ public sealed class InvoiceService(
     IPharmacyDbContext context,
     IValidator<CreateInvoiceDto> createValidator,
     ICurrentUserAccessor currentUserAccessor,
+    ICustomerService customerService,
     ILogger<InvoiceService> logger) : IInvoiceService
 {
     private readonly IPharmacyDbContext _context = context;
     private readonly IValidator<CreateInvoiceDto> _createValidator = createValidator;
     private readonly ICurrentUserAccessor _currentUserAccessor = currentUserAccessor;
+    private readonly ICustomerService _customerService = customerService;
     private readonly ILogger<InvoiceService> _logger = logger;
 
     public async Task<IEnumerable<InvoiceSummaryDto>> GetInvoiceSummariesAsync()
@@ -25,6 +28,7 @@ public sealed class InvoiceService(
         return await _context.Invoices
             .AsNoTracking()
             .Where(i => !i.IsDeleted)
+            .Include(i => i.Customer)
             .OrderByDescending(i => i.InvoiceDate)
             .Select(i => new InvoiceSummaryDto
             {
@@ -32,6 +36,8 @@ public sealed class InvoiceService(
                 InvoiceNumber = i.InvoiceNumber,
                 Date = i.InvoiceDate,
                 PatientName = i.PatientName,
+                CustomerId = i.CustomerId,
+                CustomerName = i.Customer != null ? i.Customer.Name : string.Empty,
                 NetTotal = i.NetTotal,
                 IsDeleted = i.IsDeleted
             })
@@ -43,12 +49,15 @@ public sealed class InvoiceService(
         _logger.LogInformation("Attempting to retrieve invoice details.");
         return await _context.Invoices
             .Where(i => i.Id == id && !i.IsDeleted)
+            .Include(i => i.Customer)
             .Select(i => new InvoiceDetailDto
             {
                 Id = i.Id,
                 InvoiceNumber = i.InvoiceNumber,
                 PatientName = i.PatientName,
                 DoctorName = i.DoctorName,
+                CustomerId = i.CustomerId,
+                CustomerName = i.Customer != null ? i.Customer.Name : string.Empty,
                 Date = i.InvoiceDate,
                 RowVersion = i.RowVersion,
                 Items = i.Items
@@ -96,6 +105,23 @@ public sealed class InvoiceService(
         _logger.LogInformation("Attempting to create invoice.");
         await _createValidator.ValidateAndThrowAsync(dto);
 
+        // Validate customer if provided
+        CustomerDto? customer = null;
+        if (dto.CustomerId.HasValue)
+        {
+            customer = await _customerService.GetCustomerByIdAsync(dto.CustomerId.Value);
+            if (customer == null)
+            {
+                throw new ValidationException(new[] { new ValidationFailure("CustomerId", $"Customer with ID {dto.CustomerId.Value} not found.") });
+            }
+
+            // Check if customer can make purchases
+            if (customer.IsBlacklisted)
+            {
+                throw new ValidationException(new[] { new ValidationFailure("CustomerId", $"Customer {customer.Name} is blacklisted. Reason: {customer.BlacklistReason}") });
+            }
+        }
+
         var now = DateTime.UtcNow;
         var actor = _currentUserAccessor.GetCurrentUserIdentifier();
 
@@ -106,6 +132,7 @@ public sealed class InvoiceService(
                 : dto.InvoiceNumber,
             PatientName = dto.PatientName,
             DoctorName = dto.DoctorName,
+            CustomerId = dto.CustomerId,
             InvoiceDate = DateTime.SpecifyKind(dto.Date, DateTimeKind.Utc),
             GrossTotal = dto.GrossTotal,
             TaxTotal = dto.TotalGst,
@@ -141,7 +168,7 @@ public sealed class InvoiceService(
             InvoiceId = invoice.Id,
             InvoiceNumber = invoice.InvoiceNumber,
             Action = "Created",
-            Summary = $"Created invoice with {invoice.Items.Count} line item(s).",
+            Summary = $"Created invoice with {invoice.Items.Count} line item(s){(customer != null ? $" for customer {customer.Name}" : "")}.",
             SnapshotJson = SerializeAuditSnapshot(invoice),
             PerformedAt = now,
             PerformedBy = actor
@@ -149,6 +176,13 @@ public sealed class InvoiceService(
 
         _logger.LogInformation("Creating invoice.");
         await _context.SaveChangesAsync();
+
+        // Record purchase in customer service if customer is provided
+        if (customer != null && dto.CustomerId.HasValue)
+        {
+            await _customerService.RecordPurchaseAsync(dto.CustomerId.Value, invoice.NetTotal, invoice.Id);
+        }
+
         _logger.LogInformation("Invoice created successfully.");
         _context.ChangeTracker.Clear();
         return invoice.Id;
@@ -162,6 +196,7 @@ public sealed class InvoiceService(
             InvoiceNumber = dto.InvoiceNumber,
             PatientName = dto.PatientName,
             DoctorName = dto.DoctorName,
+            CustomerId = dto.CustomerId,
             Date = dto.Date,
             Items = dto.Items,
             RowVersion = dto.RowVersion
@@ -169,8 +204,26 @@ public sealed class InvoiceService(
 
         var invoice = await _context.Invoices
             .Include(i => i.Items)
+            .Include(i => i.Customer)
             .FirstOrDefaultAsync(i => i.Id == dto.Id)
             ?? throw new Exception("Invoice not found");
+
+        // Validate customer if provided
+        CustomerDto? customer = null;
+        if (dto.CustomerId.HasValue)
+        {
+            customer = await _customerService.GetCustomerByIdAsync(dto.CustomerId.Value);
+            if (customer == null)
+            {
+                throw new ValidationException(new[] { new ValidationFailure("CustomerId", $"Customer with ID {dto.CustomerId.Value} not found.") });
+            }
+
+            // Check if customer can make purchases
+            if (customer.IsBlacklisted)
+            {
+                throw new ValidationException(new[] { new ValidationFailure("CustomerId", $"Customer {customer.Name} is blacklisted. Reason: {customer.BlacklistReason}") });
+            }
+        }
 
         var beforeSnapshot = BuildAuditSnapshot(invoice);
         var now = DateTime.UtcNow;
@@ -189,6 +242,7 @@ public sealed class InvoiceService(
 
         invoice.PatientName = dto.PatientName;
         invoice.DoctorName = dto.DoctorName;
+        invoice.CustomerId = dto.CustomerId;
         invoice.InvoiceDate = DateTime.SpecifyKind(dto.Date, DateTimeKind.Utc);
         invoice.GrossTotal = dto.GrossTotal;
         invoice.TaxTotal = dto.TotalGst;

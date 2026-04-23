@@ -1,0 +1,191 @@
+@page "/customers"
+@attribute [Authorize(Policy = "Invoice.View")]
+@using Shsmg.Pharma.Application.Services
+@rendermode InteractiveServer
+@inject ICustomerService CustomerService
+@inject NavigationManager Nav
+
+<h3 class="mb-3">Customers</h3>
+
+<div class="row mb-3">
+    <div class="col-md-3">
+        <select class="form-select" @bind="selectedType" @bind:after="LoadCustomers">
+            <option value="-1">All</option>
+            <option value="0">Walk-In</option>
+            <option value="1">Registered</option>
+            <option value="2">Corporate</option>
+        </select>
+    </div>
+
+    <div class="col-md-4">
+        <input class="form-control" placeholder="Search by name..." @bind="searchTerm" @bind:event="oninput" />
+    </div>
+
+    <div class="col-md-2">
+        <button class="btn btn-primary w-100" @onclick="Search">
+            Search
+        </button>
+    </div>
+
+    <div class="col-md-3 text-end">
+        <button class="btn btn-success" @onclick="CreateCustomer">
+            + New Customer
+        </button>
+    </div>
+</div>
+
+@if (isLoading)
+{
+    <p>Loading...</p>
+}
+else if (customers == null || customers.Customers.Count() == 0)
+{
+    <p>No customers found.</p>
+}
+else
+{
+    <table class="table table-bordered table-hover">
+        <thead class="table-light">
+            <tr>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Type</th>
+                <th>Outstanding</th>
+                <th>Credit Limit</th>
+                <th>Status</th>
+                <th>Last Purchase</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var c in customers.Customers)
+            {
+                <tr>
+                    <td>@c.Name</td>
+                    <td>@c.PhoneNumber</td>
+                    <td>@GetTypeLabel(c.Type)</td>
+                    <td>@c.OutstandingAmount.ToString("₹0.00")</td>
+                    <td>@c.CreditLimit.ToString("₹0.00")</td>
+                    <td>
+                        @if (c.IsBlacklisted)
+                        {
+                            <span class="badge bg-danger">Blacklisted</span>
+                        }
+                        else if (c.OutstandingAmount > 0)
+                        {
+                            <span class="badge bg-warning text-dark">Due</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-success">OK</span>
+                        }
+                    </td>
+                    <td>@(c.LastPurchaseDate?.ToString("dd-MMM-yyyy") ?? "-")</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="() => ViewCustomer(c.Id)">
+                            View
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="d-flex justify-content-between">
+        <button class="btn btn-secondary" disabled="@(pageNumber == 1)" @onclick="PrevPage">
+            Previous
+        </button>
+
+        <span>Page @pageNumber</span>
+
+        <button class="btn btn-secondary" disabled="@(customers.Customers.Count() < pageSize)" @onclick="NextPage">
+            Next
+        </button>
+    </div>
+}
+
+@code {
+    private CustomerListDto? customers;
+
+    private int pageNumber = 1;
+    private int pageSize = 20;
+
+    private int selectedType = -1;
+    private string searchTerm = string.Empty;
+
+    private bool isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCustomers();
+    }
+
+    private async Task LoadCustomers()
+    {
+        isLoading = true;
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            customers = await CustomerService.SearchCustomersByNameAsync(
+                searchTerm, pageNumber, pageSize);
+        }
+        else if (selectedType >= 0)
+        {
+            customers = await CustomerService.GetCustomersByTypeAsync(
+                selectedType, pageNumber, pageSize);
+        }
+        else
+        {
+            // Default: show registered customers first
+            customers = await CustomerService.GetCustomersAsync(request: new CustomerQuery
+            {
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+            }, cancellationToken: default);
+        }
+
+        isLoading = false;
+    }
+
+    private async Task Search()
+    {
+        pageNumber = 1;
+        await LoadCustomers();
+    }
+
+    private async Task NextPage()
+    {
+        pageNumber++;
+        await LoadCustomers();
+    }
+
+    private async Task PrevPage()
+    {
+        if (pageNumber > 1)
+        {
+            pageNumber--;
+            await LoadCustomers();
+        }
+    }
+
+    private void ViewCustomer(Guid id)
+    {
+        Nav.NavigateTo($"/customers/{id}");
+    }
+
+    private void CreateCustomer()
+    {
+        Nav.NavigateTo("/customers/create");
+    }
+
+    private string GetTypeLabel(int type)
+    {
+        return type switch
+        {
+            0 => "Walk-In",
+            1 => "Registered",
+            2 => "Corporate",
+            _ => "Unknown"
+        };
+    }
+}

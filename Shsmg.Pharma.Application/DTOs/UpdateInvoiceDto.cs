@@ -8,6 +8,7 @@ public class UpdateInvoiceDto
     public string InvoiceNumber { get; set; } = string.Empty;
     public string PatientName { get; set; } = string.Empty;
     public string DoctorName { get; set; } = string.Empty;
+    public Guid? CustomerId { get; set; }
     public DateTime Date { get; set; } = DateTime.Now;
 
     public List<InvoiceItemDto> Items { get; set; } = [];
@@ -26,6 +27,7 @@ public class UpdateInvoiceDto
             InvoiceNumber = this.InvoiceNumber,
             PatientName = this.PatientName,
             DoctorName = this.DoctorName,
+            CustomerId = this.CustomerId,
             InvoiceDate = this.Date,
             LastModified = DateTime.UtcNow,
             Items = [.. this.Items.Select(dtoItem => new InvoiceItem

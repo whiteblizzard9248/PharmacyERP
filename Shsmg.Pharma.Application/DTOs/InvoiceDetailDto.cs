@@ -8,6 +8,8 @@ public class InvoiceDetailDto
     public string InvoiceNumber { get; set; } = string.Empty;
     public string PatientName { get; set; } = string.Empty;
     public string DoctorName { get; set; } = string.Empty;
+    public Guid? CustomerId { get; set; }
+    public string CustomerName { get; set; } = string.Empty;
     public DateTime Date { get; set; } = DateTime.Now;
 
     public List<InvoiceItemDto> Items { get; set; } = [];
@@ -25,6 +27,7 @@ public class InvoiceDetailDto
             RowVersion = source.RowVersion,
             PatientName = source.PatientName,
             DoctorName = source.DoctorName,
+            CustomerId = source.CustomerId,
             Date = source.Date,
             InvoiceNumber = source.InvoiceNumber,
 

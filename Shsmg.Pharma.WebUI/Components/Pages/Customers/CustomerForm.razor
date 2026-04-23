@@ -1,0 +1,230 @@
+@page "/customers/create"
+@page "/customers/{CustomerId:guid}"
+@attribute [Authorize(Policy = "Invoice.View")]
+@rendermode InteractiveServer
+@using Shsmg.Pharma.Application.Services
+@using Shsmg.Pharma.Domain.Models
+
+@inject ICustomerService CustomerService
+@inject NavigationManager Nav
+
+<h3>@(IsEdit ? "Edit Customer" : "Create Customer")</h3>
+
+@if (isLoading)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <EditForm Model="form" OnValidSubmit="HandleSubmit" FormName="CustomerForm">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <!-- BASIC -->
+        <div class="card p-3 mb-3">
+            <h5>Basic Info</h5>
+
+            <InputText class="form-control mb-2" placeholder="Name" @bind-Value="form.Name" />
+
+            <InputText class="form-control mb-2" placeholder="Phone" @bind-Value="form.PhoneNumber" disabled="@IsEdit" />
+
+            <InputText class="form-control mb-2" placeholder="Email" @bind-Value="form.Email" />
+
+            <InputSelect class="form-select" @key="form.Type" @bind-Value="form.Type" @bind:after="OnTypeChanged"
+                         disabled="@IsEdit">
+                <option value="@CustomerType.WalkIn">Walk-In</option>
+                <option value="@CustomerType.Registered">Registered</option>
+                <option value="@CustomerType.Corporate">Corporate</option>
+            </InputSelect>
+        </div>
+
+        <!-- ADDRESS -->
+        @if (RequiresAddress)
+        {
+            <div class="card p-3 mb-3">
+                <h5>Billing Address</h5>
+
+                <InputText class="form-control mb-2" placeholder="Line1" @bind-Value="form.Address.Street" />
+                <InputText class="form-control mb-2" placeholder="Line2" @bind-Value="form.Address.Street2" />
+                <InputText class="form-control mb-2" placeholder="City" @bind-Value="form.Address.City" />
+                <InputText class="form-control mb-2" placeholder="State" @bind-Value="form.Address.State" />
+                <InputText class="form-control mb-2" placeholder="Pincode" @bind-Value="form.Address.PostalCode" />
+            </div>
+        }
+
+        <!-- PATIENT INFO -->
+        @if (RequiresPatientInfo)
+        {
+            <div class="card p-3 mb-3">
+                <h5>Patient Info</h5>
+
+                <InputNumber class="form-control mb-2" placeholder="Age" @bind-Value="form.Age" />
+
+                <InputSelect class="form-select mb-2" @bind-Value="form.Gender">
+                    <option value="">-- Gender --</option>
+                    <option value="M">Male</option>
+                    <option value="F">Female</option>
+                    <option value="O">Other</option>
+                </InputSelect>
+
+                @if (form.Type == CustomerType.Corporate)
+                {
+                    <InputText class="form-control mb-2" placeholder="GSTIN" @bind-Value="form.GSTIN" />
+                }
+
+                <InputText class="form-control mb-2" placeholder="Doctor" @bind-Value="form.DoctorName" />
+                <InputTextArea class="form-control" placeholder="Notes" @bind-Value="form.MedicalNotes" />
+            </div>
+        }
+
+        <button class="btn btn-primary" type="submit">
+            @(IsEdit ? "Update" : "Create")
+        </button>
+
+        <button class="btn btn-secondary ms-2" @onclick="Cancel">
+            Cancel
+        </button>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public Guid? CustomerId { get; set; }
+
+    private bool IsEdit => CustomerId.HasValue;
+    private bool isLoading;
+
+    private CustomerFormModel form = new();
+
+    private bool RequiresAddress =>
+        form.Type == CustomerType.Registered || form.Type == CustomerType.Corporate;
+
+    private bool RequiresPatientInfo =>
+        form.Type == CustomerType.Registered || form.Type == CustomerType.Corporate;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (IsEdit)
+        {
+            isLoading = true;
+
+            var existing = await CustomerService.GetCustomerByIdAsync(CustomerId!.Value);
+
+            if (existing == null)
+            {
+                Nav.NavigateTo("/customers");
+                return;
+            }
+
+            form = MapToForm(existing);
+
+            isLoading = false;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        // Build PatientInfo via domain factory logic
+        PatientInfoDto? patient = null;
+
+        if (RequiresPatientInfo)
+        {
+            patient = new PatientInfoDto
+            {
+                Age = form.Age,
+                Gender = form.Gender,
+                GSTIN = form.Type == CustomerType.Corporate ? form.GSTIN : null,
+                DoctorName = form.DoctorName,
+                MedicalNotes = form.MedicalNotes
+            };
+        }
+
+        if (IsEdit)
+        {
+            await CustomerService.UpdateCustomerAsync(new UpdateCustomerDto
+            {
+                Id = CustomerId!.Value,
+                Name = form.Name,
+                Email = form.Email,
+                BillingAddress = RequiresAddress ? form.Address : null,
+                PatientInfo = patient
+            });
+        }
+        else
+        {
+            await CustomerService.CreateCustomerAsync(new CreateCustomerDto
+            {
+                Name = form.Name,
+                PhoneNumber = form.PhoneNumber,
+                Email = form.Email,
+                Type = (int)form.Type,
+                BillingAddress = RequiresAddress ? form.Address : null,
+                PatientInfo = patient
+            });
+        }
+
+        Nav.NavigateTo("/customers");
+    }
+
+    private Task Cancel()
+    {
+        Nav.NavigateTo("/customers");
+        return Task.CompletedTask;
+    }
+
+    private void OnTypeChanged()
+    {
+        // Reset fields when switching types
+        if (form.Type == CustomerType.WalkIn)
+        {
+            form.ResetPatient();
+        }
+    }
+
+    private CustomerFormModel MapToForm(CustomerDto dto)
+    {
+        return new CustomerFormModel
+        {
+            Name = dto.Name,
+            PhoneNumber = dto.PhoneNumber,
+            Email = dto.Email,
+            Type = (CustomerType)dto.Type,
+
+            Address = dto.BillingAddress ?? new AddressDto(),
+
+            Age = dto.PatientInfo?.Age,
+            Gender = dto.PatientInfo?.Gender,
+            GSTIN = dto.PatientInfo?.GSTIN,
+            DoctorName = dto.PatientInfo?.DoctorName,
+            MedicalNotes = dto.PatientInfo?.MedicalNotes
+        };
+    }
+
+    // ---------------- FORM MODEL ----------------
+
+    public class CustomerFormModel
+    {
+        public string Name { get; set; } = "";
+        public string? PhoneNumber { get; set; }
+        public string? Email { get; set; }
+
+        public CustomerType Type { get; set; } = CustomerType.WalkIn;
+
+        public AddressDto Address { get; set; } = new();
+
+        // Patient fields (flattened for UI)
+        public int? Age { get; set; }
+        public char? Gender { get; set; }
+        public string? GSTIN { get; set; }
+        public string? DoctorName { get; set; }
+        public string? MedicalNotes { get; set; }
+
+        public void ResetPatient()
+        {
+            Age = null;
+            Gender = null;
+            GSTIN = null;
+            DoctorName = null;
+            MedicalNotes = null;
+        }
+    }
+}

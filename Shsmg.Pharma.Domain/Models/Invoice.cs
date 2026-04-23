@@ -7,6 +7,10 @@ public class Invoice : BaseEntity, IHasRowVersion
     public string PatientName { get; set; } = string.Empty;
     public string DoctorName { get; set; } = string.Empty;
 
+    // Customer relationship
+    public Guid? CustomerId { get; set; }
+    public Customer? Customer { get; set; }
+
     public List<InvoiceItem> Items { get; set; } = [];
 
     public decimal GrossTotal { get; set; } = decimal.Zero;

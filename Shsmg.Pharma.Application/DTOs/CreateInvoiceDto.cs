@@ -5,6 +5,7 @@ public class CreateInvoiceDto
     public string InvoiceNumber { get; set; } = string.Empty;
     public string PatientName { get; set; } = string.Empty;
     public string DoctorName { get; set; } = string.Empty;
+    public Guid? CustomerId { get; set; } // Optional for walk-in customers
     public DateTime Date { get; set; } = DateTime.Now;
 
     public List<InvoiceItemDto> Items { get; set; } = [];

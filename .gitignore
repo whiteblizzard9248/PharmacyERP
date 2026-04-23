@@ -484,3 +484,8 @@ $RECYCLE.BIN/
 **/appsettings.json
 **/appsettings.*.json
 **/secrets.json
+
+
+graphify-out/**
+.graphify_cached.json
+.graphify_python

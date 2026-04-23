@@ -13,7 +13,7 @@ public static class DependencyInjection
         services.AddScoped<ICompanyService, CompanyService>();
         services.AddScoped<IInvoiceService, InvoiceService>();
         services.AddScoped<IInventoryService, InventoryService>();
-        services.AddScoped<Services.IUserService, UserService>();
+        services.AddScoped<ICustomerService, CustomerService>();
         return services;
     }
 }
