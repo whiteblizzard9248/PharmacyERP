@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  PROJECT_PATH: ./WebUI/WebUI.csproj
+  PROJECT_PATH: ./Shsmg.Pharma.WebUI/Shsmg.Pharma.WebUI.csproj
   APP_NAME: PharmacyERP
 
 jobs:
