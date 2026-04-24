@@ -99,14 +99,14 @@ jobs:
       - name: Install Inno Setup
         run: choco install innosetup -y
 
+      - name: Build Installer
+        run: |
+          iscc installer/setup.iss /DMyAppVersion=${{ needs.build-app.outputs.version }}
+      
       - name: Verify installer output
         shell: pwsh
         run: |
           if (!(Test-Path "installer/output")) { throw "Installer output missing" }
-
-      - name: Build Installer
-        run: |
-          iscc installer/setup.iss /DMyAppVersion=${{ needs.build-app.outputs.version }}
 
       - uses: actions/upload-artifact@v4
         with:
