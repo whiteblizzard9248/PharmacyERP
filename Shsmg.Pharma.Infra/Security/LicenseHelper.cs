@@ -31,4 +31,11 @@ public static class LicenseHelper
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(identifier.Trim()));
         return Convert.ToBase64String(bytes)[..24];
     }
+
+    public static string GenerateLicenseKey(string hardwareId, DateTime expiry)
+    {
+        var combined = $"{hardwareId}:{expiry:yyyy-MM-dd}";
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(combined));
+        return Convert.ToBase64String(bytes)[..32];
+    }
 }

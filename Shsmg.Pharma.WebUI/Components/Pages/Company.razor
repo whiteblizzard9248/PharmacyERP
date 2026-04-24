@@ -190,6 +190,11 @@
         {
             StoreProfile.HardwareId = LicenseHelper.GetHardwareId();
         }
+        if (string.IsNullOrWhiteSpace(StoreProfile.LicenseKey))
+        {
+            StoreProfile.LicenseKey = LicenseHelper.GenerateLicenseKey(StoreProfile.HardwareId, StoreProfile.LicenseExpiry ??
+DateTime.UtcNow.AddMonths(3));
+        }
 
         IsLoading = false;
     }
@@ -200,15 +205,8 @@
 
         try
         {
-            if (string.IsNullOrWhiteSpace(StoreProfile.LicenseKey))
-            {
-                ValidationErrors.Add("License Key is required. Please provide a valid license key before saving.");
-                return;
-            }
-
-            StoreProfile.HardwareId = LicenseHelper.GetHardwareId();
             StoreProfile.IsActivated = true;
-            StoreProfile.LicenseExpiry = DateTime.UtcNow.AddYears(1);
+            StoreProfile.LicenseExpiry = DateTime.UtcNow.AddMonths(3);
 
             await CompanyService.CreateOrUpdateCompanyAsync(StoreProfile);
             LicenseStatus.IsValid = true;

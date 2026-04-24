@@ -157,21 +157,7 @@ try
 
             if (company != null)
             {
-                if (!company.IsActivated)
-                {
-                    status.IsValid = false;
-                    status.Message = "License is not activated. Please update your store profile to activate the installation.";
-                }
-                else if (company.HardwareId != currentHardwareId)
-                {
-                    status.IsValid = false;
-                    status.Message = "Unauthorized Hardware: This installation is locked to another server.";
-                }
-                else if (company.LicenseExpiry.HasValue && company.LicenseExpiry < DateTime.UtcNow)
-                {
-                    status.IsValid = false;
-                    status.Message = "License Expired: Please contact Shsmg Pharma Support.";
-                }
+                ValidateLicense(status, company.HardwareId, company.LicenseExpiry, company.IsActivated);
             }
         }
         catch (Exception ex)
@@ -287,5 +273,28 @@ static async Task CreateDefaultUser(UserManager<AppUser> userManager, string use
 
         await userManager.CreateAsync(user, password);
         await userManager.AddToRoleAsync(user, role);
+    }
+}
+
+static void ValidateLicense(LicenseStatus licenseStatus, string? storedHardwareId, DateTime? licenseExpiry, bool isActivated)
+{
+    var currentHardwareId = LicenseHelper.GetHardwareId();
+
+    if (!isActivated)
+    {
+        licenseStatus.IsValid = false;
+        licenseStatus.Message = "License is not activated. Please update your store profile to activate the installation.";
+    }
+
+    if (storedHardwareId != currentHardwareId)
+    {
+        licenseStatus.IsValid = false;
+        licenseStatus.Message = "Unauthorized Hardware: This installation is locked to another server.";
+    }
+
+    if (licenseExpiry.HasValue && licenseExpiry.Value < DateTime.UtcNow)
+    {
+        licenseStatus.IsValid = false;
+        licenseStatus.Message = "License Expired: Please contact Shsmg Pharma Support.";
     }
 }
