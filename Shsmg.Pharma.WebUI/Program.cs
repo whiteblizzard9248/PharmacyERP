@@ -38,6 +38,7 @@ Log.Logger = new LoggerConfiguration()
     .CreateLogger();
 
 var builder = WebApplication.CreateBuilder(args);
+var isMigrationMode = args.Contains("--migrate");
 builder.Host.UseSerilog();
 
 builder.Services.AddApplication();
@@ -113,33 +114,71 @@ try
     using (var scope = app.Services.CreateScope())
     {
         var context = scope.ServiceProvider.GetRequiredService<PharmacyDbContext>();
+
+        if (isMigrationMode || app.Environment.IsProduction())
+        {
+            Log.Information("Applying database migrations...");
+
+            var retries = 5;
+            while (retries-- > 0)
+            {
+                try
+                {
+                    await context.Database.MigrateAsync();
+                    Log.Information("Database migration completed.");
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Migration failed. Retrying...");
+                    await Task.Delay(3000);
+                }
+            }
+        }
+
+        // 👉 EXIT EARLY if installer mode
+        if (isMigrationMode)
+        {
+            Log.Information("Migration mode completed. Exiting application.");
+            return;
+        }
         var status = app.Services.GetRequiredService<LicenseStatus>();
 
         status.IsValid = true;
         status.Message = string.Empty;
 
-        var company = await context.Companies.FirstOrDefaultAsync();
-        var currentHardwareId = LicenseHelper.GetHardwareId();
-
-        Log.Information("Verifying license for hardware ID: {HardwareId}", currentHardwareId);
-
-        if (company != null)
+        try
         {
-            if (!company.IsActivated)
+
+            var company = await context.Companies.FirstOrDefaultAsync();
+            var currentHardwareId = LicenseHelper.GetHardwareId();
+
+            Log.Information("Verifying license for hardware ID: {HardwareId}", currentHardwareId);
+
+            if (company != null)
             {
-                status.IsValid = false;
-                status.Message = "License is not activated. Please update your store profile to activate the installation.";
+                if (!company.IsActivated)
+                {
+                    status.IsValid = false;
+                    status.Message = "License is not activated. Please update your store profile to activate the installation.";
+                }
+                else if (company.HardwareId != currentHardwareId)
+                {
+                    status.IsValid = false;
+                    status.Message = "Unauthorized Hardware: This installation is locked to another server.";
+                }
+                else if (company.LicenseExpiry.HasValue && company.LicenseExpiry < DateTime.UtcNow)
+                {
+                    status.IsValid = false;
+                    status.Message = "License Expired: Please contact Shsmg Pharma Support.";
+                }
             }
-            else if (company.HardwareId != currentHardwareId)
-            {
-                status.IsValid = false;
-                status.Message = "Unauthorized Hardware: This installation is locked to another server.";
-            }
-            else if (company.LicenseExpiry.HasValue && company.LicenseExpiry < DateTime.UtcNow)
-            {
-                status.IsValid = false;
-                status.Message = "License Expired: Please contact Shsmg Pharma Support.";
-            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Database unavailable during startup");
+            status.IsValid = false;
+            status.Message = "Database not available. Please check installation.";
         }
     }
 

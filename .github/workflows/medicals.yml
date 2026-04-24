@@ -1,62 +1,147 @@
-name: Build OnPremise Pharma
+name: Build & Package PharmacyERP
 
 on:
   push:
     branches: [ "main" ]
   workflow_dispatch:
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+env:
+  PROJECT_PATH: ./WebUI/WebUI.csproj
+  APP_NAME: PharmacyERP
 
-    env:
-      PROJECT_PATH: ./src/WebUI/WebUI.csproj   # 🔴 Change this to your entry project
-      OUTPUT_NAME: shpharma
+jobs:
+
+  # 🧱 JOB 1 — BUILD APPLICATION
+  build-app:
+    runs-on: windows-latest
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set Version
+        id: version
+        run: |
+          $version = "1.0.${{ github.run_number }}"
+          echo "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x' # adjust if needed
+          global-json-file: ./global.json
           cache: true
-          cache-dependency-path: '**/*.csproj'
 
-      - name: Restore Dependencies
-        run: dotnet restore $PROJECT_PATH
+      - name: Restore
+        run: dotnet restore $env:PROJECT_PATH
 
-      - name: Publish Windows Executable
+      - name: Publish EXE
         run: |
-          dotnet publish $PROJECT_PATH \
-            -c Release \
-            -r win-x64 \
-            --self-contained true \
-            -p:PublishSingleFile=true \
-            -p:IncludeNativeLibrariesForSelfExtract=true \
-            -p:PublishReadyToRun=true \
-            -p:PublishTrimmed=true \
-            -p:TrimMode=link \
-            -p:DebugType=None \
-            -p:DebugSymbols=false \
-            -o ./publish_output
+          dotnet publish $env:PROJECT_PATH `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:PublishReadyToRun=true `
+            -p:PublishTrimmed=false `
+            -p:Version=${{ steps.version.outputs.version }} `
+            -o publish_output
 
-      - name: Rename Executable
+      - name: Rename EXE
         run: |
-          cd publish_output
-          ls
-          # Rename generated exe to a clean name
-          find . -type f -name "*.exe" -exec mv {} $OUTPUT_NAME.exe \;
+          Get-ChildItem publish_output -Filter *.exe | Rename-Item -NewName "$env:APP_NAME.exe"
 
-      - name: Zip Release Bundle
+      - name: Zip App
         run: |
-          cd publish_output
-          zip -r ../${{ env.OUTPUT_NAME }}.zip .
+          Compress-Archive -Path publish_output\* -DestinationPath "$env:APP_NAME-win-x64.zip"
 
-      - name: Upload Artifact
+      - name: Upload App Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-production-build
-          path: ${{ env.OUTPUT_NAME }}.zip
+          name: app-package
+          path: ${{ env.APP_NAME }}-win-x64.zip
           retention-days: 7
+
+  # 🧱 JOB 2 — BUILD INSTALLER
+  build-installer:
+    runs-on: windows-latest
+    needs: build-app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download App Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-package
+
+      - name: Extract App
+        run: |
+          Expand-Archive ${{ env.APP_NAME }}-win-x64.zip -DestinationPath installer/app
+
+      - name: Download PostgreSQL Installer
+        run: |
+          mkdir installer\postgresql
+          powershell -Command "Invoke-WebRequest -Uri https://get.enterprisedb.com/postgresql/postgresql-16.2-1-windows-x64.exe -OutFile installer\postgresql\postgresql-installer.exe"
+
+      - name: Verify installer inputs
+        run: |
+          echo "=== INSTALLER ROOT ==="
+          dir installer
+          echo "=== APP FILES ==="
+          dir installer\app
+          echo "=== SCRIPTS ==="
+          dir installer\scripts
+          echo "=== POSTGRES ==="
+          dir installer\postgresql
+          
+      - name: Validate required files
+        run: |
+          if (!(Test-Path "installer\setup.iss")) { exit 1 }
+          if (!(Test-Path "installer\scripts\init-db.sql")) { exit 1 }
+          if (!(Test-Path "installer\app")) { exit 1 }
+          if (!(Test-Path "installer\postgresql\postgresql-installer.exe")) { exit 1 }
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+
+      - name: Build Installer
+        run: |
+          iscc installer\setup.iss /DMyAppVersion=${{ needs.build-app.outputs.version }}
+
+      - name: Upload Installer Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-package
+          path: installer/output/*.exe
+          retention-days: 7
+
+  # 🚀 JOB 3 — CREATE RELEASE (OPTIONAL BUT RECOMMENDED)
+  release:
+    runs-on: windows-latest
+    needs: [build-app, build-installer]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Download App Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-package
+
+      - name: Download Installer Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-package
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: PharmacyERP v1.0.${{ github.run_number }}
+          files: |
+            *.zip
+            *.exe

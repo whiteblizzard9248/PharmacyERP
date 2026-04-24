@@ -17,7 +17,7 @@ public static class DependencyInjection
     {
         // Register DbContext with PostgreSQL provider
         services.AddDbContext<PharmacyDbContext>(options =>
-            options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")).EnableSensitiveDataLogging(false));
+            options.UseNpgsql(Environment.GetEnvironmentVariable("PHARMA_DB") ?? configuration.GetConnectionString("DefaultConnection")).EnableSensitiveDataLogging(false));
 
         services.AddScoped<RowVersionInterceptor>();
         // Register IPharmacyDbContext for DI
