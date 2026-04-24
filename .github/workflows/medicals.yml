@@ -11,7 +11,6 @@ env:
 
 jobs:
 
-  # 🧱 JOB 1 — BUILD APPLICATION
   build-app:
     runs-on: windows-latest
 
@@ -19,8 +18,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set Version
         id: version
@@ -37,7 +35,7 @@ jobs:
       - name: Restore
         run: dotnet restore $env:PROJECT_PATH
 
-      - name: Publish EXE
+      - name: Publish
         run: |
           dotnet publish $env:PROJECT_PATH `
             -c Release `
@@ -51,97 +49,90 @@ jobs:
             -o publish_output
 
       - name: Rename EXE
+        shell: pwsh
         run: |
-          Get-ChildItem publish_output -Filter *.exe | Rename-Item -NewName "$env:APP_NAME.exe"
+              $exe = Get-ChildItem publish_output -Filter *.exe
+              if ($exe.Count -eq 0) { throw "No EXE found after publish" }
+              Rename-Item $exe[0].FullName "$env:APP_NAME.exe"
 
-      - name: Zip App
+      - name: Zip
+        shell: pwsh
         run: |
           Compress-Archive -Path publish_output\* -DestinationPath "$env:APP_NAME-win-x64.zip"
 
-      - name: Upload App Artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: app-package
           path: ${{ env.APP_NAME }}-win-x64.zip
-          retention-days: 7
 
-  # 🧱 JOB 2 — BUILD INSTALLER
+
   build-installer:
     runs-on: windows-latest
     needs: build-app
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Download App Artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: app-package
 
       - name: Extract App
+        shell: pwsh
         run: |
-          Expand-Archive ${{ env.APP_NAME }}-win-x64.zip -DestinationPath installer/app
+          mkdir installer/app
+          Expand-Archive ${{ env.APP_NAME }}-win-x64.zip -DestinationPath installer/app -Force
 
-      - name: Download PostgreSQL Installer
+      - name: Download PostgreSQL
+        shell: pwsh
         run: |
-          mkdir installer\postgresql
-          powershell -Command "Invoke-WebRequest -Uri https://get.enterprisedb.com/postgresql/postgresql-16.2-1-windows-x64.exe -OutFile installer\postgresql\postgresql-installer.exe"
+          New-Item -ItemType Directory -Force -Path installer/postgresql
+          Invoke-WebRequest -Uri https://get.enterprisedb.com/postgresql/postgresql-16.2-1-windows-x64.exe -OutFile installer/postgresql/postgresql-installer.exe
 
-      - name: Verify installer inputs
+      - name: Validate Inputs
+        shell: pwsh
         run: |
-          echo "=== INSTALLER ROOT ==="
-          dir installer
-          echo "=== APP FILES ==="
-          dir installer\app
-          echo "=== SCRIPTS ==="
-          dir installer\scripts
-          echo "=== POSTGRES ==="
-          dir installer\postgresql
-          
-      - name: Validate required files
-        run: |
-          if (!(Test-Path "installer\setup.iss")) { exit 1 }
-          if (!(Test-Path "installer\scripts\init-db.sql")) { exit 1 }
-          if (!(Test-Path "installer\app")) { exit 1 }
-          if (!(Test-Path "installer\postgresql\postgresql-installer.exe")) { exit 1 }
+          if (!(Test-Path "installer/setup.iss")) { throw "Missing setup.iss" }
+          if (!(Test-Path "installer/scripts/init-db.sql")) { throw "Missing SQL" }
+          if (!(Test-Path "installer/app")) { throw "Missing app" }
+          if (!(Test-Path "installer/postgresql/postgresql-installer.exe")) { throw "Missing postgres" }
 
       - name: Install Inno Setup
         run: choco install innosetup -y
 
+      - name: Verify installer output
+        shell: pwsh
+        run: |
+          if (!(Test-Path "installer/output")) { throw "Installer output missing" }
+
       - name: Build Installer
         run: |
-          iscc installer\setup.iss /DMyAppVersion=${{ needs.build-app.outputs.version }}
+          iscc installer/setup.iss /DMyAppVersion=${{ needs.build-app.outputs.version }}
 
-      - name: Upload Installer Artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: installer-package
           path: installer/output/*.exe
-          retention-days: 7
 
-  # 🚀 JOB 3 — CREATE RELEASE (OPTIONAL BUT RECOMMENDED)
+
   release:
     runs-on: windows-latest
     needs: [build-app, build-installer]
     if: github.ref == 'refs/heads/main'
 
     steps:
-      - name: Download App Artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: app-package
 
-      - name: Download Installer Artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: installer-package
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: PharmacyERP v1.0.${{ github.run_number }}
+          tag_name: v${{ needs.build-app.outputs.version }}
+          name: PharmacyERP v${{ needs.build-app.outputs.version }}
           files: |
-            *.zip
+            PharmacyERP-win-x64.zip
             *.exe
