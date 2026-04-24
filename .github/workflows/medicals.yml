@@ -16,7 +16,6 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.106'
           # This enables built-in caching for NuGet packages
           cache: true
           cache-dependency-path: '**/*.csproj' # or '**/packages.lock.json'
