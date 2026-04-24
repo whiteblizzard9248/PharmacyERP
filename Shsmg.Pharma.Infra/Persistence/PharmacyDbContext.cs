@@ -9,10 +9,13 @@ namespace Shsmg.Pharma.Infra.Persistence;
 public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options, RowVersionInterceptor rowVersionInterceptor) : IdentityDbContext<AppUser>(options), IPharmacyDbContext
 {
     public DbSet<Company> Companies { get; set; }
+    public DbSet<Supplier> Suppliers { get; set; }
     public DbSet<Invoice> Invoices { get; set; }
     public DbSet<InvoiceAuditLog> InvoiceAuditLogs { get; set; }
     public DbSet<InvoiceItem> InvoiceItems { get; set; }
     public DbSet<InventoryItem> InventoryItems { get; set; }
+    public DbSet<PurchaseInvoice> PurchaseInvoices { get; set; }
+    public DbSet<PurchaseInvoiceItem> PurchaseInvoiceItems { get; set; }
     public DbSet<Customer> Customers { get; set; }
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -42,6 +45,23 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options, RowV
             entity.HasIndex(e => e.HardwareId);
 
             // Ensure soft delete is always active
+            entity.HasQueryFilter(e => !e.IsDeleted);
+        });
+
+        builder.Entity<Supplier>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.ContactPerson).HasMaxLength(150);
+            entity.Property(e => e.PhoneNumber).HasMaxLength(20);
+            entity.Property(e => e.Email).HasMaxLength(255);
+            entity.Property(e => e.GstNumber).HasMaxLength(30);
+            entity.Property(e => e.Address).HasColumnType("text");
+
+            entity.HasIndex(e => e.Name);
+            entity.HasIndex(e => e.PhoneNumber);
+            entity.HasIndex(e => e.GstNumber);
+
             entity.HasQueryFilter(e => !e.IsDeleted);
         });
 
@@ -88,6 +108,35 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options, RowV
             entity.HasIndex(e => e.PerformedAt);
         });
 
+        builder.Entity<PurchaseInvoice>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.PurchaseInvoiceNumber).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.SupplierInvoiceNumber).HasMaxLength(50);
+            entity.Property(e => e.Notes).HasColumnType("text");
+            entity.Property(e => e.GrossTotal).HasPrecision(12, 2);
+            entity.Property(e => e.TaxTotal).HasPrecision(12, 2);
+            entity.Property(e => e.NetTotal).HasPrecision(12, 2);
+            entity.Property(e => e.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
+
+            entity.HasIndex(e => e.PurchaseInvoiceNumber).IsUnique();
+            entity.HasIndex(e => e.PurchaseDate);
+            entity.HasIndex(e => e.SupplierId);
+
+            entity.HasOne(e => e.Supplier)
+                .WithMany(s => s.PurchaseInvoices)
+                .HasForeignKey(e => e.SupplierId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasMany(e => e.Items)
+                .WithOne()
+                .HasForeignKey(e => e.PurchaseInvoiceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasQueryFilter(e => !e.IsDeleted);
+        });
+
         // 4. Invoice Items Configuration
         builder.Entity<InvoiceItem>(entity =>
         {
@@ -108,6 +157,24 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options, RowV
             entity.Property(e => e.Rate).HasPrecision(12, 2);
             entity.Property(e => e.GstPercentage).HasPrecision(5, 2);
 
+            entity.HasQueryFilter(e => !e.IsDeleted);
+        });
+
+        builder.Entity<PurchaseInvoiceItem>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Description).IsRequired().HasMaxLength(1000);
+            entity.Property(e => e.HsnCode).HasMaxLength(10);
+            entity.Property(e => e.Package).HasMaxLength(50);
+            entity.Property(e => e.Mfg).HasMaxLength(100);
+            entity.Property(e => e.Batch).HasMaxLength(50);
+            entity.Property(e => e.ExpiryDate).HasMaxLength(20);
+            entity.Property(e => e.Rate).HasPrecision(12, 2);
+            entity.Property(e => e.GstPercentage).HasPrecision(5, 2);
+
+            entity.HasIndex(e => e.PurchaseInvoiceId);
+            entity.HasIndex(e => e.InventoryItemId);
             entity.HasQueryFilter(e => !e.IsDeleted);
         });
 

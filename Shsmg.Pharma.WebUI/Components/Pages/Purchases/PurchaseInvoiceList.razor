@@ -1,0 +1,145 @@
+@page "/purchases"
+@attribute [Authorize(Policy = "Purchase.View")]
+@rendermode InteractiveServer
+@using Shsmg.Pharma.Application.DTOs
+@using Shsmg.Pharma.Application.Services
+
+@inject IPurchaseInvoiceService PurchaseInvoiceService
+@inject NavigationManager Navigation
+@inject Shsmg.Pharma.WebUI.Services.PermissionService PermissionService
+
+<PageTitle>Purchase Invoices</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+        <div>
+            <h2 class="mb-1">Purchase Invoices</h2>
+            <p class="text-muted mb-0">Record purchases and update inventory stock through supplier invoices.</p>
+        </div>
+        @if (CanCreate)
+        {
+            <button type="button" class="btn btn-primary" @onclick="CreatePurchaseInvoice">New Purchase Invoice</button>
+        }
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <InputText class="form-control" placeholder="Search by invoice number or supplier" @bind-Value="searchInput"
+                       @onblur="OnSearchBlur" @onkeydown="OnSearchKeyDown" />
+        </div>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
+    }
+    else if (!Invoices.Any())
+    {
+        <div class="alert alert-info">No purchase invoices found.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Purchase #</th>
+                        <th>Supplier Invoice #</th>
+                        <th>Supplier</th>
+                        <th>Date</th>
+                        <th>Total</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var invoice in Invoices)
+                    {
+                        <tr>
+                            <td>@invoice.PurchaseInvoiceNumber</td>
+                            <td>@invoice.SupplierInvoiceNumber</td>
+                            <td>@invoice.SupplierName</td>
+                            <td>@invoice.Date.ToString("dd MMM yyyy")</td>
+                            <td>@invoice.NetTotal.ToString("C")</td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-outline-primary me-2"
+                                        @onclick="() => ViewPurchaseInvoice(invoice.Id)">View</button>
+                                @if (CanEdit)
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-secondary me-2"
+                                            @onclick="() => EditPurchaseInvoice(invoice.Id)">Edit</button>
+                                }
+                                @if (CanDelete)
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-danger"
+                                            @onclick="() => DeletePurchaseInvoiceAsync(invoice.Id)">Delete</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private List<PurchaseInvoiceSummaryDto> Invoices = [];
+    private bool IsLoading = true;
+    private bool CanCreate;
+    private bool CanEdit;
+    private bool CanDelete;
+    private string searchInput = string.Empty;
+    private string searchQuery = string.Empty;
+    private string SearchQuery => searchQuery;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CanCreate = await PermissionService.HasPermissionAsync("Purchase.Create");
+        CanEdit = await PermissionService.HasPermissionAsync("Purchase.Edit");
+        CanDelete = await PermissionService.HasPermissionAsync("Purchase.Delete");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        IsLoading = true;
+        StateHasChanged();
+        Invoices = (await PurchaseInvoiceService.GetPurchaseInvoicesAsync(searchQuery)).ToList();
+        IsLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task OnSearchBlur(FocusEventArgs _) => await ApplySearchAsync();
+
+    private async Task OnSearchKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await ApplySearchAsync();
+        }
+    }
+
+    private async Task ApplySearchAsync()
+    {
+        var normalizedInput = searchInput?.Trim() ?? string.Empty;
+        if (normalizedInput == searchQuery)
+        {
+            return;
+        }
+
+        searchQuery = normalizedInput;
+        await LoadAsync();
+    }
+
+    private void CreatePurchaseInvoice() => Navigation.NavigateTo("/purchases/new");
+    private void ViewPurchaseInvoice(Guid id) => Navigation.NavigateTo($"/purchases/{id}");
+    private void EditPurchaseInvoice(Guid id) => Navigation.NavigateTo($"/purchases/edit/{id}");
+
+    private async Task DeletePurchaseInvoiceAsync(Guid id)
+    {
+        await PurchaseInvoiceService.DeletePurchaseInvoiceAsync(id);
+        await LoadAsync();
+    }
+}

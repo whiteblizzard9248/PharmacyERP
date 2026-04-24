@@ -1,0 +1,135 @@
+@page "/suppliers/new"
+@page "/suppliers/edit/{SupplierId:guid}"
+@attribute [Authorize(Policy = "Supplier.View")]
+@rendermode InteractiveServer
+@using Shsmg.Pharma.Application.DTOs
+@using Shsmg.Pharma.Application.Services
+
+@inject ISupplierService SupplierService
+@inject NavigationManager Navigation
+@inject Shsmg.Pharma.WebUI.Services.PermissionService PermissionService
+
+<PageTitle>@(IsEdit ? "Edit Supplier" : "New Supplier")</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">@(IsEdit ? "Edit Supplier" : "New Supplier")</h2>
+            <p class="text-muted mb-0">Maintain supplier details for purchase invoices.</p>
+        </div>
+        <button type="button" class="btn btn-outline-secondary" @onclick="BackToList">Back</button>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
+    }
+    else if (!CanSave)
+    {
+        <div class="alert alert-warning">You do not have permission to modify suppliers.</div>
+    }
+    else
+    {
+        <EditForm Model="Supplier" OnValidSubmit="SaveAsync" FormName="SupplierForm">
+            @if (ValidationErrors.Any())
+            {
+                <div class="alert alert-danger">
+                    <ul class="mb-0 ps-3">
+                        @foreach (var error in ValidationErrors)
+                        {
+                            <li>@error</li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Supplier name</label>
+                            <InputText class="form-control" @bind-Value="Supplier.Name" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Contact person</label>
+                            <InputText class="form-control" @bind-Value="Supplier.ContactPerson" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Phone number</label>
+                            <InputText class="form-control" @bind-Value="Supplier.PhoneNumber" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Email</label>
+                            <InputText class="form-control" @bind-Value="Supplier.Email" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">GST number</label>
+                            <InputText class="form-control" @bind-Value="Supplier.GstNumber" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Address</label>
+                            <InputTextArea class="form-control" rows="4" @bind-Value="Supplier.Address" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 mt-4">
+                <button type="button" class="btn btn-outline-secondary" @onclick="BackToList">Cancel</button>
+                <button type="submit" class="btn btn-primary" disabled="@IsSaving">@(IsSaving ? "Saving..." : "Save supplier")</button>
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid? SupplierId { get; set; }
+
+    private bool IsEdit => SupplierId.HasValue;
+    private bool IsLoading = true;
+    private bool IsSaving;
+    private bool CanSave;
+    private SupplierDto Supplier = new();
+    private List<string> ValidationErrors = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        CanSave = IsEdit
+            ? await PermissionService.HasPermissionAsync("Supplier.Edit")
+            : await PermissionService.HasPermissionAsync("Supplier.Create");
+
+        if (IsEdit)
+        {
+            Supplier = await SupplierService.GetSupplierByIdAsync(SupplierId!.Value) ?? new SupplierDto();
+        }
+
+        IsLoading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (IsSaving || !CanSave) return;
+
+        IsSaving = true;
+        ValidationErrors.Clear();
+        try
+        {
+            await SupplierService.SaveSupplierAsync(Supplier);
+            BackToList();
+        }
+        catch (FluentValidation.ValidationException vex)
+        {
+            ValidationErrors = vex.Errors.Select(x => x.ErrorMessage).Distinct().ToList();
+        }
+        catch (Exception ex)
+        {
+            ValidationErrors.Add(ex.Message);
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private void BackToList() => Navigation.NavigateTo("/suppliers");
+}

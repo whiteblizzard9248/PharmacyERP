@@ -82,6 +82,18 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("Inventory.Edit", policy => policy.RequireClaim("Permission", Permissions.InventoryEdit));
     options.AddPolicy("Inventory.Delete", policy => policy.RequireClaim("Permission", Permissions.InventoryDelete));
 
+    // Supplier permissions
+    options.AddPolicy("Supplier.View", policy => policy.RequireClaim("Permission", Permissions.SupplierView));
+    options.AddPolicy("Supplier.Create", policy => policy.RequireClaim("Permission", Permissions.SupplierCreate));
+    options.AddPolicy("Supplier.Edit", policy => policy.RequireClaim("Permission", Permissions.SupplierEdit));
+    options.AddPolicy("Supplier.Delete", policy => policy.RequireClaim("Permission", Permissions.SupplierDelete));
+
+    // Purchase permissions
+    options.AddPolicy("Purchase.View", policy => policy.RequireClaim("Permission", Permissions.PurchaseView));
+    options.AddPolicy("Purchase.Create", policy => policy.RequireClaim("Permission", Permissions.PurchaseCreate));
+    options.AddPolicy("Purchase.Edit", policy => policy.RequireClaim("Permission", Permissions.PurchaseEdit));
+    options.AddPolicy("Purchase.Delete", policy => policy.RequireClaim("Permission", Permissions.PurchaseDelete));
+
     // User management
     options.AddPolicy("User.Manage", policy => policy.RequireClaim("Permission", Permissions.UserManage));
 });

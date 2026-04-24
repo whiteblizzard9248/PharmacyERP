@@ -1,0 +1,131 @@
+@page "/purchases/{PurchaseInvoiceId:guid}"
+@attribute [Authorize(Policy = "Purchase.View")]
+@rendermode InteractiveServer
+@using Shsmg.Pharma.Application.Services
+
+@inject IPurchaseInvoiceService PurchaseInvoiceService
+@inject NavigationManager Navigation
+@inject Shsmg.Pharma.WebUI.Services.PermissionService PermissionService
+
+<PageTitle>Purchase Invoice Details</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h2 class="mb-1">Purchase Invoice Details</h2>
+            <p class="text-muted mb-0">Review supplier stock entries and purchase totals.</p>
+        </div>
+        <button class="btn btn-outline-secondary" @onclick="BackToList">Back to purchases</button>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
+    }
+    else if (Invoice is null)
+    {
+        <div class="alert alert-warning">Purchase invoice not found.</div>
+    }
+    else
+    {
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <p class="text-uppercase text-muted mb-1">Purchase</p>
+                        <h5 class="mb-0">@Invoice.PurchaseInvoiceNumber</h5>
+                    </div>
+                    <div class="col-md-3">
+                        <p class="text-uppercase text-muted mb-1">Supplier invoice</p>
+                        <p class="mb-0">@(string.IsNullOrWhiteSpace(Invoice.SupplierInvoiceNumber) ? "-" : Invoice.SupplierInvoiceNumber)</p>
+                    </div>
+                    <div class="col-md-3">
+                        <p class="text-uppercase text-muted mb-1">Supplier</p>
+                        <p class="mb-0">@Invoice.SupplierName</p>
+                    </div>
+                    <div class="col-md-3">
+                        <p class="text-uppercase text-muted mb-1">Date</p>
+                        <p class="mb-0">@Invoice.Date.ToString("dd MMM yyyy")</p>
+                    </div>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(Invoice.Notes))
+                {
+                    <hr />
+                    <p class="mb-0">@Invoice.Notes</p>
+                }
+            </div>
+        </div>
+
+        <div class="table-responsive mb-4">
+            <table class="table table-bordered align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Description</th>
+                        <th>HSN/SAC</th>
+                        <th>Package</th>
+                        <th>Batch</th>
+                        <th>Expiry</th>
+                        <th>Qty</th>
+                        <th>Rate</th>
+                        <th>GST</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Invoice.Items)
+                    {
+                        <tr>
+                            <td>@item.Description</td>
+                            <td>@item.HsnCode</td>
+                            <td>@item.Package</td>
+                            <td>@item.Batch</td>
+                            <td>@item.ExpiryDate</td>
+                            <td>@item.Quantity</td>
+                            <td>@item.Rate.ToString("C")</td>
+                            <td>@item.GstPercentage.ToString("0.##")%</td>
+                            <td>@item.LineTotal.ToString("C")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="row">
+            <div class="col-md-4 offset-md-8">
+                <dl class="row">
+                    <dt class="col-6">Subtotal</dt>
+                    <dd class="col-6 text-end">@Invoice.GrossTotal.ToString("C")</dd>
+                    <dt class="col-6">GST</dt>
+                    <dd class="col-6 text-end">@Invoice.TotalGst.ToString("C")</dd>
+                    <dt class="col-6">Total</dt>
+                    <dd class="col-6 text-end fw-bold">@Invoice.NetTotal.ToString("C")</dd>
+                </dl>
+            </div>
+        </div>
+
+        @if (CanEdit)
+        {
+            <div class="mt-3 text-end">
+                <button type="button" class="btn btn-primary" @onclick="EditInvoice">Edit purchase invoice</button>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public Guid PurchaseInvoiceId { get; set; }
+
+    private PurchaseInvoiceDetailDto? Invoice;
+    private bool IsLoading = true;
+    private bool CanEdit;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Invoice = await PurchaseInvoiceService.GetPurchaseInvoiceByIdAsync(PurchaseInvoiceId);
+        CanEdit = await PermissionService.HasPermissionAsync("Purchase.Edit");
+        IsLoading = false;
+    }
+
+    private void BackToList() => Navigation.NavigateTo("/purchases");
+    private void EditInvoice() => Navigation.NavigateTo($"/purchases/edit/{PurchaseInvoiceId}");
+}

@@ -1,0 +1,136 @@
+@page "/suppliers"
+@attribute [Authorize(Policy = "Supplier.View")]
+@rendermode InteractiveServer
+@using Shsmg.Pharma.Application.DTOs
+@using Shsmg.Pharma.Application.Services
+
+@inject ISupplierService SupplierService
+@inject NavigationManager Navigation
+@inject Shsmg.Pharma.WebUI.Services.PermissionService PermissionService
+
+<PageTitle>Suppliers</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+        <div>
+            <h2 class="mb-1">Suppliers</h2>
+            <p class="text-muted mb-0">Manage vendors used for purchase invoices and stock replenishment.</p>
+        </div>
+        @if (CanManage)
+        {
+            <button type="button" class="btn btn-primary" @onclick="CreateSupplier">Add supplier</button>
+        }
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <InputText class="form-control" placeholder="Search by supplier, phone, or GST" @bind-Value="searchInput"
+                       @onblur="OnSearchBlur" @onkeydown="OnSearchKeyDown" />
+        </div>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
+    }
+    else if (!Suppliers.Any())
+    {
+        <div class="alert alert-info">No suppliers found.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Name</th>
+                        <th>Contact</th>
+                        <th>Phone</th>
+                        <th>GST</th>
+                        @if (CanManage)
+                        {
+                            <th style="width: 180px;">Actions</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var supplier in Suppliers)
+                    {
+                        <tr>
+                            <td>@supplier.Name</td>
+                            <td>@supplier.ContactPerson</td>
+                            <td>@supplier.PhoneNumber</td>
+                            <td>@supplier.GstNumber</td>
+                            @if (CanManage)
+                            {
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary me-2"
+                                            @onclick="() => EditSupplier(supplier.Id)">Edit</button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger"
+                                            @onclick="() => DeleteSupplierAsync(supplier.Id)">Delete</button>
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private List<SupplierDto> Suppliers = [];
+    private bool IsLoading = true;
+    private bool CanManage;
+    private string searchInput = string.Empty;
+    private string searchQuery = string.Empty;
+    private string SearchQuery => searchQuery;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CanManage = await PermissionService.HasAnyPermissionAsync("Supplier.Create", "Supplier.Edit", "Supplier.Delete");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        IsLoading = true;
+        StateHasChanged();
+        Suppliers = (await SupplierService.GetSuppliersAsync(searchQuery)).ToList();
+        IsLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task OnSearchBlur(FocusEventArgs _) => await ApplySearchAsync();
+
+    private async Task OnSearchKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await ApplySearchAsync();
+        }
+    }
+
+    private async Task ApplySearchAsync()
+    {
+        var normalizedInput = searchInput?.Trim() ?? string.Empty;
+        if (normalizedInput == searchQuery)
+        {
+            return;
+        }
+
+        searchQuery = normalizedInput;
+        await LoadAsync();
+    }
+
+    private void CreateSupplier() => Navigation.NavigateTo("/suppliers/new");
+    private void EditSupplier(Guid id) => Navigation.NavigateTo($"/suppliers/edit/{id}");
+
+    private async Task DeleteSupplierAsync(Guid id)
+    {
+        await SupplierService.DeleteSupplierAsync(id);
+        await LoadAsync();
+    }
+}

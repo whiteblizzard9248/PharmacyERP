@@ -1,0 +1,370 @@
+@page "/purchases/new"
+@page "/purchases/edit/{PurchaseInvoiceId:guid}"
+@attribute [Authorize(Policy = "Purchase.View")]
+@rendermode InteractiveServer
+@using Shsmg.Pharma.Application.DTOs
+@using Shsmg.Pharma.Application.Services
+
+@inject IPurchaseInvoiceService PurchaseInvoiceService
+@inject ISupplierService SupplierService
+@inject IInventoryService InventoryService
+@inject NavigationManager Navigation
+@inject Shsmg.Pharma.WebUI.Services.PermissionService PermissionService
+
+<PageTitle>@(IsEdit ? "Edit Purchase Invoice" : "New Purchase Invoice")</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">@(IsEdit ? "Edit Purchase Invoice" : "New Purchase Invoice")</h2>
+            <p class="text-muted mb-0">Record purchased stock and update inventory through supplier entries.</p>
+        </div>
+        <button type="button" class="btn btn-outline-secondary" @onclick="BackToList">Back</button>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
+    }
+    else if (!CanSave)
+    {
+        <div class="alert alert-warning">You do not have permission to modify purchase invoices.</div>
+    }
+    else
+    {
+        <EditForm Model="Invoice" OnValidSubmit="SaveAsync" FormName="PurchaseInvoiceForm">
+            @if (ValidationErrors.Any())
+            {
+                <div class="alert alert-danger">
+                    <ul class="mb-0 ps-3">
+                        @foreach (var error in ValidationErrors)
+                        {
+                            <li>@error</li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Supplier</label>
+                            <InputSelect class="form-select" @bind-Value="Invoice.SupplierId">
+                                <option value="@Guid.Empty">Select supplier</option>
+                                @foreach (var supplier in Suppliers)
+                                {
+                                    <option value="@supplier.Id">@supplier.Name</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Purchase date</label>
+                            <InputDate class="form-control" @bind-Value="Invoice.Date" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Purchase number</label>
+                            <InputText class="form-control" @bind-Value="Invoice.PurchaseInvoiceNumber" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Supplier invoice number</label>
+                            <InputText class="form-control" @bind-Value="Invoice.SupplierInvoiceNumber" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Notes</label>
+                            <InputTextArea class="form-control" rows="3" @bind-Value="Invoice.Notes" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h3 class="h5 mb-1">Items</h3>
+                            <p class="text-muted mb-0">Select inventory when available, or add a new stock item manually.</p>
+                        </div>
+                        <button type="button" class="btn btn-primary" @onclick="AddItem">Add item</button>
+                    </div>
+
+                    <div class="d-grid gap-3">
+                        @for (var index = 0; index < Invoice.Items.Count; index++)
+                        {
+                            var item = Invoice.Items[index];
+                            <section @key="item.Id" class="border rounded-4 p-3">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <span class="badge text-bg-light border">Item @(index + 1)</span>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemoveItem(item)">Remove</button>
+                                </div>
+
+                                <div class="row g-3">
+                                    <div class="col-12">
+                                        <label class="form-label fw-semibold">Inventory item <span class="text-muted fw-normal">(optional)</span></label>
+                                        <input class="form-control"
+                                               value="@GetInventorySearchText(item)"
+                                               placeholder="Search inventory by item, HSN code, batch, or manufacturer"
+                                               @oninput="@(async e => await OnInventorySearchChangedAsync(item, e))" />
+                                        @if (GetInventorySearchResults(item).Count > 0)
+                                        {
+                                            <div class="border rounded-3 mt-2 overflow-hidden">
+                                                @foreach (var suggestion in GetInventorySearchResults(item))
+                                                {
+                                                    <button type="button" class="btn btn-link text-start text-decoration-none w-100 border-bottom px-3 py-2"
+                                                            @onclick="() => ApplyInventorySelection(item, suggestion)">
+                                                        <div class="fw-semibold">@suggestion.Description</div>
+                                                        <div class="small text-muted">HSN: @suggestion.HsnCode | Batch: @suggestion.Batch | Stock: @suggestion.QuantityInStock</div>
+                                                    </button>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                    <div class="col-lg-4">
+                                        <label class="form-label fw-semibold">Description</label>
+                                        <InputText class="form-control" @bind-Value="item.Description" />
+                                    </div>
+                                    <div class="col-lg-2 col-md-4">
+                                        <label class="form-label fw-semibold">HSN/SAC</label>
+                                        <InputText class="form-control" @bind-Value="item.HsnCode" />
+                                    </div>
+                                    <div class="col-lg-2 col-md-4">
+                                        <label class="form-label fw-semibold">Package</label>
+                                        <InputSelect class="form-select" @bind-Value="item.Package">
+                                            <option value="">Select</option>
+                                            @foreach (var pkg in Enum.GetValues<PackageType>())
+                                            {
+                                                <option value="@pkg">@pkg</option>
+                                            }
+                                        </InputSelect>
+                                    </div>
+                                    <div class="col-lg-4">
+                                        <label class="form-label fw-semibold">Manufacturer</label>
+                                        <InputText class="form-control" @bind-Value="item.Mfg" />
+                                    </div>
+                                    <div class="col-lg-3 col-md-4">
+                                        <label class="form-label fw-semibold">Batch</label>
+                                        <InputText class="form-control" @bind-Value="item.Batch" />
+                                    </div>
+                                    <div class="col-lg-3 col-md-4">
+                                        <label class="form-label fw-semibold">Expiry</label>
+                                        <InputText class="form-control" @bind-Value="item.ExpiryDate" />
+                                    </div>
+                                    <div class="col-lg-2 col-md-4">
+                                        <label class="form-label fw-semibold">Qty</label>
+                                        <InputNumber class="form-control" @bind-Value="item.Quantity" />
+                                    </div>
+                                    <div class="col-lg-2 col-md-4">
+                                        <label class="form-label fw-semibold">Rate</label>
+                                        <InputNumber class="form-control" @bind-Value="item.Rate" step="0.01" />
+                                    </div>
+                                    <div class="col-lg-2 col-md-4">
+                                        <label class="form-label fw-semibold">GST %</label>
+                                        <InputNumber class="form-control" @bind-Value="item.GstPercentage" step="0.01" />
+                                    </div>
+                                </div>
+                            </section>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-4 offset-md-8">
+                    <dl class="row">
+                        <dt class="col-6">Subtotal</dt>
+                        <dd class="col-6 text-end">@Invoice.GrossTotal.ToString("C")</dd>
+                        <dt class="col-6">GST</dt>
+                        <dd class="col-6 text-end">@Invoice.TotalGst.ToString("C")</dd>
+                        <dt class="col-6">Total</dt>
+                        <dd class="col-6 text-end fw-bold">@Invoice.NetTotal.ToString("C")</dd>
+                    </dl>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <button type="button" class="btn btn-outline-secondary" @onclick="BackToList">Cancel</button>
+                <button type="submit" class="btn btn-primary" disabled="@IsSaving">@(IsSaving ? "Saving..." : "Save purchase invoice")</button>
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid? PurchaseInvoiceId { get; set; }
+
+    private bool IsEdit => PurchaseInvoiceId.HasValue;
+    private bool IsLoading = true;
+    private bool IsSaving;
+    private bool CanSave;
+    private CreatePurchaseInvoiceDto Invoice = new();
+    private List<SupplierDto> Suppliers = [];
+    private List<string> ValidationErrors = [];
+    private readonly Dictionary<Guid, string> InventorySearchText = new();
+    private readonly Dictionary<Guid, List<InventoryItemDto>> InventorySearchResults = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        CanSave = IsEdit
+            ? await PermissionService.HasPermissionAsync("Purchase.Edit")
+            : await PermissionService.HasPermissionAsync("Purchase.Create");
+
+        Suppliers = (await SupplierService.GetSuppliersAsync()).ToList();
+
+        if (IsEdit)
+        {
+            var existing = await PurchaseInvoiceService.GetPurchaseInvoiceByIdAsync(PurchaseInvoiceId!.Value);
+            if (existing is not null)
+            {
+                Invoice = PurchaseInvoiceDetailDto.ToCreateDto(existing);
+            }
+        }
+
+        if (!Invoice.Items.Any())
+        {
+            AddItem();
+        }
+
+        SyncInventoryPickerState();
+        IsLoading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (IsSaving || !CanSave) return;
+
+        IsSaving = true;
+        ValidationErrors.Clear();
+        try
+        {
+            Guid id = IsEdit
+                ? await PurchaseInvoiceService.UpdatePurchaseInvoiceAsync(new UpdatePurchaseInvoiceDto
+                {
+                    Id = PurchaseInvoiceId!.Value,
+                    PurchaseInvoiceNumber = Invoice.PurchaseInvoiceNumber,
+                    SupplierInvoiceNumber = Invoice.SupplierInvoiceNumber,
+                    SupplierId = Invoice.SupplierId,
+                    Date = Invoice.Date,
+                    Notes = Invoice.Notes,
+                    Items = Invoice.Items,
+                    RowVersion = Invoice.RowVersion
+                })
+                : await PurchaseInvoiceService.CreatePurchaseInvoiceAsync(Invoice);
+
+            Navigation.NavigateTo($"/purchases/{id}");
+        }
+        catch (FluentValidation.ValidationException vex)
+        {
+            ValidationErrors = vex.Errors.Select(x => x.ErrorMessage).Distinct().ToList();
+        }
+        catch (Exception ex)
+        {
+            ValidationErrors.Add(ex.Message);
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private void AddItem()
+    {
+        Invoice.Items.Add(new PurchaseInvoiceItemDto
+        {
+            Id = Guid.NewGuid(),
+            Quantity = 1,
+            GstPercentage = 5
+        });
+        SyncInventoryPickerState();
+    }
+
+    private void RemoveItem(PurchaseInvoiceItemDto item)
+    {
+        Invoice.Items.Remove(item);
+        if (!Invoice.Items.Any())
+        {
+            AddItem();
+        }
+        SyncInventoryPickerState();
+    }
+
+    private string GetInventorySearchText(PurchaseInvoiceItemDto item)
+    {
+        EnsureInventoryPickerState(item);
+        return InventorySearchText[item.Id];
+    }
+
+    private IReadOnlyList<InventoryItemDto> GetInventorySearchResults(PurchaseInvoiceItemDto item)
+    {
+        EnsureInventoryPickerState(item);
+        return InventorySearchResults[item.Id];
+    }
+
+    private async Task OnInventorySearchChangedAsync(PurchaseInvoiceItemDto item, ChangeEventArgs args)
+    {
+        EnsureInventoryPickerState(item);
+        var query = args.Value?.ToString() ?? string.Empty;
+        InventorySearchText[item.Id] = query;
+
+        if (query.Trim().Length < 2)
+        {
+            InventorySearchResults[item.Id] = [];
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        InventorySearchResults[item.Id] = (await InventoryService.SearchInventoryItemsAsync(query.Trim(), 8)).ToList();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ApplyInventorySelection(PurchaseInvoiceItemDto item, InventoryItemDto selected)
+    {
+        item.InventoryItemId = selected.Id;
+        item.Description = selected.Description;
+        item.HsnCode = selected.HsnCode;
+        item.Package = selected.Package;
+        item.Mfg = selected.Mfg;
+        item.Batch = selected.Batch;
+        item.ExpiryDate = selected.ExpiryDate;
+        item.Rate = selected.Rate;
+        item.GstPercentage = selected.GstPercentage;
+        InventorySearchText[item.Id] = $"{selected.Description} ({selected.Batch})";
+        InventorySearchResults[item.Id] = [];
+    }
+
+    private void SyncInventoryPickerState()
+    {
+        var activeIds = Invoice.Items.Select(x => x.Id).ToHashSet();
+
+        foreach (var key in InventorySearchText.Keys.Where(k => !activeIds.Contains(k)).ToList())
+        {
+            InventorySearchText.Remove(key);
+        }
+
+        foreach (var key in InventorySearchResults.Keys.Where(k => !activeIds.Contains(k)).ToList())
+        {
+            InventorySearchResults.Remove(key);
+        }
+
+        foreach (var item in Invoice.Items)
+        {
+            EnsureInventoryPickerState(item);
+        }
+    }
+
+    private void EnsureInventoryPickerState(PurchaseInvoiceItemDto item)
+    {
+        if (!InventorySearchText.ContainsKey(item.Id))
+        {
+            InventorySearchText[item.Id] = item.InventoryItemId.HasValue && !string.IsNullOrWhiteSpace(item.Description)
+                ? $"{item.Description} ({item.Batch})"
+                : string.Empty;
+        }
+
+        if (!InventorySearchResults.ContainsKey(item.Id))
+        {
+            InventorySearchResults[item.Id] = [];
+        }
+    }
+
+    private void BackToList() => Navigation.NavigateTo("/purchases");
+}
