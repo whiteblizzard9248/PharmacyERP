@@ -1,13 +1,17 @@
-name: Build Self-Contained Windows App
+name: Build OnPremise Pharma
 
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: # Allows you to run this manually from the Actions tab
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    env:
+      PROJECT_PATH: ./src/WebUI/WebUI.csproj   # 🔴 Change this to your entry project
+      OUTPUT_NAME: shpharma
 
     steps:
       - name: Checkout Code
@@ -16,32 +20,43 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          # This enables built-in caching for NuGet packages
+          dotnet-version: '10.0.x' # adjust if needed
           cache: true
-          cache-dependency-path: '**/*.csproj' # or '**/packages.lock.json'
+          cache-dependency-path: '**/*.csproj'
 
       - name: Restore Dependencies
-        run: dotnet restore
+        run: dotnet restore $PROJECT_PATH
 
-      - name: Publish for Windows
-        # -r win-x64: Targets Windows 64-bit
-        # --self-contained: Includes the .NET 10 runtime in the folder
-        # -p:PublishSingleFile: Merges logic into one .exe
-        run: >
-          dotnet publish -c Release 
-          -r win-x64 
-          --self-contained true 
-          -p:PublishSingleFile=true 
-          -p:PublishReadyToRun=true 
-          -o ./publish_output
+      - name: Publish Windows Executable
+        run: |
+          dotnet publish $PROJECT_PATH \
+            -c Release \
+            -r win-x64 \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:PublishReadyToRun=true \
+            -p:PublishTrimmed=true \
+            -p:TrimMode=link \
+            -p:DebugType=None \
+            -p:DebugSymbols=false \
+            -o ./publish_output
+
+      - name: Rename Executable
+        run: |
+          cd publish_output
+          ls
+          # Rename generated exe to a clean name
+          find . -type f -name "*.exe" -exec mv {} $OUTPUT_NAME.exe \;
 
       - name: Zip Release Bundle
-        # Uses standard Linux 'zip' utility to package the output folder
-        run: zip -r medicals.zip ./publish_output
+        run: |
+          cd publish_output
+          zip -r ../${{ env.OUTPUT_NAME }}.zip .
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-production-build
-          path: medicals.zip
+          path: ${{ env.OUTPUT_NAME }}.zip
           retention-days: 7
