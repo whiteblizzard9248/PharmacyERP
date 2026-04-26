@@ -93,21 +93,27 @@
                                                                @bind-Value="StoreProfile.LicenseNumber" />
                                                 </div>
                                             </div>
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <label class="form-label fw-semibold">License key</label>
+                                                    <InputTextArea class="form-control form-control-lg"
+                                                                   @bind-Value="StoreProfile.LicenseKey" />
+                                                </div>
+                                            </div>
                                             <div class="row g-3">
-                                                <div class="col-md-4">
-                                                    <p class="text-uppercase text-muted mb-1">License key</p>
-                                                    <h5 class="mb-0">@StoreProfile.LicenseKey</h5>
-                                                </div>
-                                                <div class="col-md-4">
-                                                    <p class="text-uppercase text-muted mb-1">Hardware ID</p>
-                                                    <p class="mb-0">@StoreProfile.HardwareId</p>
-                                                </div>
-                                                <div class="col-md-4">
-                                                    <p class="text-uppercase text-muted mb-1">Expires</p>
-                                                    <p class="mb-0">@StoreProfile.LicenseExpiry?.ToString("d")</p>
+                                                <div class="col-md-6">
+                                                    <label for="hwid" class="form-label fw-semibold">Hardware ID</label>
+                                                    <InputText id="hwid" class="form-control form-control-lg bg-light"
+                                                               @bind-Value="StoreProfile.HardwareId" readonly />
                                                 </div>
 
-                                            
+                                                <div class="col-md-6">
+                                                    <label class="form-label fw-semibold text-muted text-uppercase">Expires</label>
+                                                    <div class="form-control-lg d-flex align-items-center"
+                                                         style="height: calc(1.5em + 1rem + 2px);">
+                                                        <p class="mb-0 fw-bold">@StoreProfile.LicenseExpiry?.ToString("d")</p>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </section>
                                     </div>
@@ -118,7 +124,8 @@
                                             <p class="text-muted mb-4">Save once your pharmacy information is up to date. <span>A valid
                                                 license key is required to use this pharmacy system.</span></p>
                                                 <div class="d-grid gap-2">
-                                                    <button type="submit" class="btn btn-primary btn-lg">Save profile</button>
+                                                    <button disabled="@StoreProfile.IsActivated" type="submit"
+                                                            class="btn btn-primary btn-lg">Save profile</button>
                                                     <button type="button" class="btn btn-outline-secondary"
                                                             @onclick="BackToHome">Cancel</button>
                                                 </div>
@@ -163,6 +170,22 @@
                                             </div>
                                         </div>
                                     </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <p class="text-uppercase text-muted mb-1">License key</p>
+                                            <h5 class="mb-0">@StoreProfile.LicenseKey</h5>
+                                        </div>
+                                    </div>
+                                    <div class="row g-2">
+                                        <div class="col-md-6">
+                                            <p class="text-uppercase text-muted mb-1">Hardware ID</p>
+                                            <p class="mb-0">@StoreProfile.HardwareId</p>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <p class="text-uppercase text-muted mb-1">Expires</p>
+                                            <p class="mb-0">@StoreProfile.LicenseExpiry?.ToString("d")</p>
+                                        </div>
+                                    </div>
                                 </section>
                             }
                         }
@@ -190,12 +213,6 @@
         {
             StoreProfile.HardwareId = LicenseHelper.GetHardwareId();
         }
-        if (string.IsNullOrWhiteSpace(StoreProfile.LicenseKey))
-        {
-            StoreProfile.LicenseKey = LicenseHelper.GenerateLicenseKey(StoreProfile.HardwareId, StoreProfile.LicenseExpiry ??
-DateTime.UtcNow.AddMonths(3));
-        }
-
         IsLoading = false;
     }
 
@@ -206,8 +223,6 @@ DateTime.UtcNow.AddMonths(3));
         try
         {
             StoreProfile.IsActivated = true;
-            StoreProfile.LicenseExpiry = DateTime.UtcNow.AddMonths(3);
-
             await CompanyService.CreateOrUpdateCompanyAsync(StoreProfile);
             LicenseStatus.IsValid = true;
             LicenseStatus.Message = string.Empty;

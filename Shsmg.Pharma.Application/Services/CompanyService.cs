@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Shsmg.Pharma.Application.Common;
@@ -6,10 +7,11 @@ using Shsmg.Pharma.Domain.Models;
 
 namespace Shsmg.Pharma.Application.Services;
 
-public sealed class CompanyService(IPharmacyDbContext context, ILogger<CompanyService> logger) : ICompanyService
+public sealed class CompanyService(IPharmacyDbContext context, ILogger<CompanyService> logger, ILicenseService licenseService) : ICompanyService
 {
     private readonly IPharmacyDbContext _context = context;
     private readonly ILogger<CompanyService> _logger = logger;
+    private readonly ILicenseService _licenseService = licenseService;
 
     public async Task<CompanyDto?> GetCompanyAsync()
     {
@@ -42,16 +44,19 @@ public sealed class CompanyService(IPharmacyDbContext context, ILogger<CompanySe
         var existingCompany = dto.Id != Guid.Empty
             ? await _context.Companies.FirstOrDefaultAsync(c => c.Id == dto.Id && !c.IsDeleted)
             : await _context.Companies.FirstOrDefaultAsync(c => !c.IsDeleted);
+        var currentValidationResult = _licenseService.Validate(dto.LicenseKey!, dto.HardwareId!);
+        var currentValidationResultStr = JsonSerializer.Serialize(currentValidationResult, new JsonSerializerOptions { WriteIndented = true });
+        _logger.LogInformation($"License info {currentValidationResultStr}");
 
         if (existingCompany != null)
         {
-            existingCompany.Name = dto.Name;
+            existingCompany.Name = currentValidationResult.LicensePayload!.Company;
             existingCompany.Address = dto.Address;
-            existingCompany.LicenseNumber = dto.LicenseNumber;
+            existingCompany.LicenseNumber = currentValidationResult.LicensePayload.LicenseId;
             existingCompany.ContactNumber = dto.ContactNumber;
             existingCompany.LicenseKey = dto.LicenseKey;
-            existingCompany.LicenseExpiry = dto.LicenseExpiry;
-            existingCompany.HardwareId = dto.HardwareId;
+            existingCompany.LicenseExpiry = currentValidationResult.LicensePayload.Expiry;
+            existingCompany.HardwareId = currentValidationResult.LicensePayload.HardwareId;
             existingCompany.IsActivated = dto.IsActivated;
             existingCompany.LastModified = DateTime.UtcNow;
 
@@ -62,13 +67,13 @@ public sealed class CompanyService(IPharmacyDbContext context, ILogger<CompanySe
 
         var newCompany = new Company
         {
-            Name = dto.Name,
+            Name = currentValidationResult.LicensePayload!.Company,
             Address = dto.Address,
-            LicenseNumber = dto.LicenseNumber,
+            LicenseNumber = currentValidationResult.LicensePayload.LicenseId,
             ContactNumber = dto.ContactNumber,
             LicenseKey = dto.LicenseKey,
-            LicenseExpiry = dto.LicenseExpiry,
-            HardwareId = dto.HardwareId
+            LicenseExpiry = currentValidationResult.LicensePayload.Expiry,
+            HardwareId = currentValidationResult.LicensePayload.HardwareId,
         };
 
         _context.Companies.Add(newCompany);

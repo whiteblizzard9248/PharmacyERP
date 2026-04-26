@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Serilog;
 using Serilog.Events;
+using Shsmg.Pharma.Infra.Services;
 
 var culture = new CultureInfo("en-IN");
 CultureInfo.DefaultThreadCurrentCulture = culture;
@@ -104,6 +105,7 @@ builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 builder.Services.AddScoped<Shsmg.Pharma.WebUI.Services.PermissionService>();
 builder.Services.AddSingleton<LicenseStatus>();
+builder.Services.AddSingleton<ILicenseService, LicenseService>();
 
 try
 {
@@ -157,7 +159,11 @@ try
 
             if (company != null)
             {
-                ValidateLicense(status, company.HardwareId, company.LicenseExpiry, company.IsActivated);
+                var licenseService = app.Services.GetRequiredService<ILicenseService>();
+                if (company?.LicenseKey == null) throw new Exception("License Key Cannot be null");
+                var result = licenseService.Validate(company.LicenseKey, currentHardwareId);
+                status.IsValid = result.IsValid;
+                status.Message = result.Message;
             }
         }
         catch (Exception ex)
@@ -273,28 +279,5 @@ static async Task CreateDefaultUser(UserManager<AppUser> userManager, string use
 
         await userManager.CreateAsync(user, password);
         await userManager.AddToRoleAsync(user, role);
-    }
-}
-
-static void ValidateLicense(LicenseStatus licenseStatus, string? storedHardwareId, DateTime? licenseExpiry, bool isActivated)
-{
-    var currentHardwareId = LicenseHelper.GetHardwareId();
-
-    if (!isActivated)
-    {
-        licenseStatus.IsValid = false;
-        licenseStatus.Message = "License is not activated. Please update your store profile to activate the installation.";
-    }
-
-    if (storedHardwareId != currentHardwareId)
-    {
-        licenseStatus.IsValid = false;
-        licenseStatus.Message = "Unauthorized Hardware: This installation is locked to another server.";
-    }
-
-    if (licenseExpiry.HasValue && licenseExpiry.Value < DateTime.UtcNow)
-    {
-        licenseStatus.IsValid = false;
-        licenseStatus.Message = "License Expired: Please contact Shsmg Pharma Support.";
     }
 }
