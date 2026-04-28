@@ -47,6 +47,7 @@ MCowBQYDK2VwAyEAPcHRBDO6QQSvi+PAtBMRU1txq0YzOLiJt5RNvJ4oc2o=
         {
             var json = Encoding.UTF8.GetString(payloadBytes);
             payload = JsonSerializer.Deserialize<LicensePayload>(json)!;
+            payload.Expiry = NormalizeIncoming(payload.Expiry);
         }
         catch
         {
@@ -61,13 +62,31 @@ MCowBQYDK2VwAyEAPcHRBDO6QQSvi+PAtBMRU1txq0YzOLiJt5RNvJ4oc2o=
             return LicenseValidationResult.Invalid("Hardware mismatch");
 
         // Expiry check (with small tolerance)
-        if (payload.Expiry < DateTime.UtcNow.AddMinutes(-5))
+        var now = DateTime.UtcNow;
+
+        // Expired (with small tolerance)
+        if (payload.Expiry < now.AddMinutes(-5))
             return LicenseValidationResult.Invalid("License expired");
+
+        // Expiring soon (e.g., within next 3 days)
+        if (payload.Expiry <= now.AddDays(3))
+            return LicenseValidationResult.Invalid("License is expiring soon");
 
         return LicenseValidationResult.Valid(payload);
     }
 
     // -------- helpers --------
+
+    private static DateTime NormalizeIncoming(DateTime dt)
+    {
+        if (dt.Kind == DateTimeKind.Utc)
+            return dt;
+
+        if (dt.Kind == DateTimeKind.Unspecified)
+            dt = DateTime.SpecifyKind(dt, DateTimeKind.Local);
+
+        return dt.ToUniversalTime();
+    }
 
     private static string Normalize(string s)
         => (s ?? string.Empty).Trim().ToUpperInvariant();

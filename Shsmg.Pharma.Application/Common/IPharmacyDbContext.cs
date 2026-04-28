@@ -14,6 +14,8 @@ public interface IPharmacyDbContext
     DbSet<PurchaseInvoice> PurchaseInvoices { get; }
     DbSet<PurchaseInvoiceItem> PurchaseInvoiceItems { get; }
     DbSet<Customer> Customers { get; }
+    DbSet<Receipt> Receipts { get; }
+    DbSet<Payment> Payments { get; }
 
     ChangeTracker ChangeTracker { get; }
 

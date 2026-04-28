@@ -24,7 +24,9 @@
 
     @if (IsLoading)
     {
-        <div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
     }
     else if (!CanSave)
     {
@@ -60,7 +62,7 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Purchase date</label>
-                            <InputDate class="form-control" @bind-Value="Invoice.Date" />
+                            <InputDate class="form-control" @bind-Value="DateLocal" Type="InputDateType.DateTimeLocal" />
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Purchase number</label>
@@ -83,7 +85,8 @@
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <div>
                             <h3 class="h5 mb-1">Items</h3>
-                            <p class="text-muted mb-0">Select inventory when available, or add a new stock item manually.</p>
+                            <p class="text-muted mb-0">Select inventory when available, or add a new stock item manually.
+                            </p>
                         </div>
                         <button type="button" class="btn btn-primary" @onclick="AddItem">Add item</button>
                     </div>
@@ -95,99 +98,102 @@
                             <section @key="item.Id" class="border rounded-4 p-3">
                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                     <span class="badge text-bg-light border">Item @(index + 1)</span>
-                                    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemoveItem(item)">Remove</button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger"
+                                            @onclick="() => RemoveItem(item)">Remove</button>
                                 </div>
 
                                 <div class="row g-3">
                                     <div class="col-12">
-                                        <label class="form-label fw-semibold">Inventory item <span class="text-muted fw-normal">(optional)</span></label>
-                                        <input class="form-control"
-                                               value="@GetInventorySearchText(item)"
-                                               placeholder="Search inventory by item, HSN code, batch, or manufacturer"
-                                               @oninput="@(async e => await OnInventorySearchChangedAsync(item, e))" />
-                                        @if (GetInventorySearchResults(item).Count > 0)
-                                        {
-                                            <div class="border rounded-3 mt-2 overflow-hidden">
-                                                @foreach (var suggestion in GetInventorySearchResults(item))
-                                                {
-                                                    <button type="button" class="btn btn-link text-start text-decoration-none w-100 border-bottom px-3 py-2"
-                                                            @onclick="() => ApplyInventorySelection(item, suggestion)">
-                                                        <div class="fw-semibold">@suggestion.Description</div>
-                                                        <div class="small text-muted">HSN: @suggestion.HsnCode | Batch: @suggestion.Batch | Stock: @suggestion.QuantityInStock</div>
-                                                    </button>
+                                        <label class="form-label fw-semibold">Inventory item <span
+                                            class="text-muted fw-normal">(optional)</span></label>
+                                            <input class="form-control" value="@GetInventorySearchText(item)"
+                                                   placeholder="Search inventory by item, HSN code, batch, or manufacturer"
+                                                   @oninput="@(async e => await OnInventorySearchChangedAsync(item, e))" />
+                                            @if (GetInventorySearchResults(item).Count > 0)
+                                            {
+                                                <div class="border rounded-3 mt-2 overflow-hidden">
+                                                    @foreach (var suggestion in GetInventorySearchResults(item))
+                                                    {
+                                                        <button type="button"
+                                                                class="btn btn-link text-start text-decoration-none w-100 border-bottom px-3 py-2"
+                                                                @onclick="() => ApplyInventorySelection(item, suggestion)">
+                                                            <div class="fw-semibold">@suggestion.Description</div>
+                                                            <div class="small text-muted">HSN: @suggestion.HsnCode | Batch:
+                                                                @suggestion.Batch | Stock: @suggestion.QuantityInStock</div>
+                                                            </button>
+                                                        }
+                                                    </div>
                                                 }
                                             </div>
-                                        }
-                                    </div>
-                                    <div class="col-lg-4">
-                                        <label class="form-label fw-semibold">Description</label>
-                                        <InputText class="form-control" @bind-Value="item.Description" />
-                                    </div>
-                                    <div class="col-lg-2 col-md-4">
-                                        <label class="form-label fw-semibold">HSN/SAC</label>
-                                        <InputText class="form-control" @bind-Value="item.HsnCode" />
-                                    </div>
-                                    <div class="col-lg-2 col-md-4">
-                                        <label class="form-label fw-semibold">Package</label>
-                                        <InputSelect class="form-select" @bind-Value="item.Package">
-                                            <option value="">Select</option>
-                                            @foreach (var pkg in Enum.GetValues<PackageType>())
-                                            {
-                                                <option value="@pkg">@pkg</option>
-                                            }
-                                        </InputSelect>
-                                    </div>
-                                    <div class="col-lg-4">
-                                        <label class="form-label fw-semibold">Manufacturer</label>
-                                        <InputText class="form-control" @bind-Value="item.Mfg" />
-                                    </div>
-                                    <div class="col-lg-3 col-md-4">
-                                        <label class="form-label fw-semibold">Batch</label>
-                                        <InputText class="form-control" @bind-Value="item.Batch" />
-                                    </div>
-                                    <div class="col-lg-3 col-md-4">
-                                        <label class="form-label fw-semibold">Expiry</label>
-                                        <InputText class="form-control" @bind-Value="item.ExpiryDate" />
-                                    </div>
-                                    <div class="col-lg-2 col-md-4">
-                                        <label class="form-label fw-semibold">Qty</label>
-                                        <InputNumber class="form-control" @bind-Value="item.Quantity" />
-                                    </div>
-                                    <div class="col-lg-2 col-md-4">
-                                        <label class="form-label fw-semibold">Rate</label>
-                                        <InputNumber class="form-control" @bind-Value="item.Rate" step="0.01" />
-                                    </div>
-                                    <div class="col-lg-2 col-md-4">
-                                        <label class="form-label fw-semibold">GST %</label>
-                                        <InputNumber class="form-control" @bind-Value="item.GstPercentage" step="0.01" />
-                                    </div>
-                                </div>
-                            </section>
-                        }
+                                            <div class="col-lg-4">
+                                                <label class="form-label fw-semibold">Description</label>
+                                                <InputText class="form-control" @bind-Value="item.Description" />
+                                            </div>
+                                            <div class="col-lg-2 col-md-4">
+                                                <label class="form-label fw-semibold">HSN/SAC</label>
+                                                <InputText class="form-control" @bind-Value="item.HsnCode" />
+                                            </div>
+                                            <div class="col-lg-2 col-md-4">
+                                                <label class="form-label fw-semibold">Package</label>
+                                                <InputSelect class="form-select" @bind-Value="item.Package">
+                                                    <option value="">Select</option>
+                                                    @foreach (var pkg in Enum.GetValues<PackageType>())
+                                                    {
+                                                        <option value="@pkg">@pkg</option>
+                                                    }
+                                                </InputSelect>
+                                            </div>
+                                            <div class="col-lg-4">
+                                                <label class="form-label fw-semibold">Manufacturer</label>
+                                                <InputText class="form-control" @bind-Value="item.Mfg" />
+                                            </div>
+                                            <div class="col-lg-3 col-md-4">
+                                                <label class="form-label fw-semibold">Batch</label>
+                                                <InputText class="form-control" @bind-Value="item.Batch" />
+                                            </div>
+                                            <div class="col-lg-3 col-md-4">
+                                                <label class="form-label fw-semibold">Expiry</label>
+                                                <InputText class="form-control" @bind-Value="item.ExpiryDate" />
+                                            </div>
+                                            <div class="col-lg-2 col-md-4">
+                                                <label class="form-label fw-semibold">Qty</label>
+                                                <InputNumber class="form-control" @bind-Value="item.Quantity" />
+                                            </div>
+                                            <div class="col-lg-2 col-md-4">
+                                                <label class="form-label fw-semibold">Rate</label>
+                                                <InputNumber class="form-control" @bind-Value="item.Rate" step="0.01" />
+                                            </div>
+                                            <div class="col-lg-2 col-md-4">
+                                                <label class="form-label fw-semibold">GST %</label>
+                                                <InputNumber class="form-control" @bind-Value="item.GstPercentage" step="0.01" />
+                                            </div>
+                                        </div>
+                                    </section>
+                                }
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
 
-            <div class="row">
-                <div class="col-md-4 offset-md-8">
-                    <dl class="row">
-                        <dt class="col-6">Subtotal</dt>
-                        <dd class="col-6 text-end">@Invoice.GrossTotal.ToString("C")</dd>
-                        <dt class="col-6">GST</dt>
-                        <dd class="col-6 text-end">@Invoice.TotalGst.ToString("C")</dd>
-                        <dt class="col-6">Total</dt>
-                        <dd class="col-6 text-end fw-bold">@Invoice.NetTotal.ToString("C")</dd>
-                    </dl>
-                </div>
-            </div>
+                    <div class="row">
+                        <div class="col-md-4 offset-md-8">
+                            <dl class="row">
+                                <dt class="col-6">Subtotal</dt>
+                                <dd class="col-6 text-end">@Invoice.GrossTotal.ToString("C")</dd>
+                                <dt class="col-6">GST</dt>
+                                <dd class="col-6 text-end">@Invoice.TotalGst.ToString("C")</dd>
+                                <dt class="col-6">Total</dt>
+                                <dd class="col-6 text-end fw-bold">@Invoice.NetTotal.ToString("C")</dd>
+                            </dl>
+                        </div>
+                    </div>
 
-            <div class="d-flex justify-content-end gap-2 mt-3">
-                <button type="button" class="btn btn-outline-secondary" @onclick="BackToList">Cancel</button>
-                <button type="submit" class="btn btn-primary" disabled="@IsSaving">@(IsSaving ? "Saving..." : "Save purchase invoice")</button>
-            </div>
-        </EditForm>
-    }
-</div>
+                    <div class="d-flex justify-content-end gap-2 mt-3">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="BackToList">Cancel</button>
+                        <button type="submit" class="btn btn-primary" disabled="@IsSaving">@(IsSaving ? "Saving..." : "Save purchase invoice")</button>
+                    </div>
+                </EditForm>
+            }
+        </div>
 
 @code {
     [Parameter] public Guid? PurchaseInvoiceId { get; set; }
@@ -202,6 +208,34 @@
     private readonly Dictionary<Guid, string> InventorySearchText = new();
     private readonly Dictionary<Guid, List<InventoryItemDto>> InventorySearchResults = new();
 
+    private DateTime? DateLocal
+    {
+        get
+        {
+            if (Invoice.Date == default)
+                return null;
+
+            // Treat stored value as UTC → convert to local for UI
+            return DateTime.SpecifyKind(Invoice.Date, DateTimeKind.Utc).ToLocalTime();
+        }
+        set
+        {
+            if (value is null)
+            {
+                Invoice.Date = default;
+                return;
+            }
+
+            var local = value.Value;
+
+            // datetime-local gives Unspecified → treat as Local
+            if (local.Kind == DateTimeKind.Unspecified)
+                local = DateTime.SpecifyKind(local, DateTimeKind.Local);
+
+            // Convert to UTC before storing in model
+            Invoice.Date = local.ToUniversalTime();
+        }
+    }
     protected override async Task OnInitializedAsync()
     {
         CanSave = IsEdit

@@ -1,11 +1,12 @@
 ﻿@using Microsoft.AspNetCore.Components.Authorization
+@inject LicenseStatus LicenseStatus
 
 <div class="top-row navbar navbar-dark">
     <div class="container-fluid nav-brand-wrap">
         <a class="navbar-brand" href="">
             <span class="nav-brand-mark">Rx</span>
             <span class="nav-brand-copy">
-                <span class="nav-brand-title">Pharmacy ERP</span>
+                <span class="nav-brand-title">SH ERP</span>
                 <span class="nav-brand-subtitle">Operations dashboard</span>
             </span>
         </a>
@@ -25,63 +26,99 @@
 
         <AuthorizeView>
             <Authorized Context="outerAuth">
-                <div class="nav-section-label px-3">Workspace</div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="invoices">
-                        <span class="bi bi-receipt" aria-hidden="true"></span> Invoices
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="customers">
-                        <span class="bi bi-users" aria-hidden="true"></span> Customers
-                    </NavLink>
-                </div>
+                @if (LicenseStatus.IsValid)
+                {
+                    <div class="nav-section-label px-3">Workspace</div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="invoices">
+                            <span class="bi bi-receipt" aria-hidden="true"></span> Invoices
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="customers">
+                            <span class="bi bi-users" aria-hidden="true"></span> Customers
+                        </NavLink>
+                    </div>
 
-                <AuthorizeView Policy="Inventory.View">
-                    <Authorized Context="inventoryAuth">
-                        <div class="nav-item px-3">
-                            <NavLink class="nav-link" href="inventory">
-                                <span class="bi bi-capsule-pill" aria-hidden="true"></span> Inventory
-                            </NavLink>
-                        </div>
-                    </Authorized>
-                </AuthorizeView>
+                    <AuthorizeView Policy="Inventory.View">
+                        <Authorized Context="inventoryAuth">
+                            <div class="nav-item px-3">
+                                <NavLink class="nav-link" href="inventory">
+                                    <span class="bi bi-capsule-pill" aria-hidden="true"></span> Inventory
+                                </NavLink>
+                            </div>
+                        </Authorized>
+                    </AuthorizeView>
 
-                <AuthorizeView Policy="Supplier.View">
-                    <Authorized Context="supplierAuth">
-                        <div class="nav-item px-3">
-                            <NavLink class="nav-link" href="suppliers">
-                                <span class="bi bi-truck" aria-hidden="true"></span> Suppliers
-                            </NavLink>
-                        </div>
-                    </Authorized>
-                </AuthorizeView>
+                    <AuthorizeView Policy="Supplier.View">
+                        <Authorized Context="supplierAuth">
+                            <div class="nav-item px-3">
+                                <NavLink class="nav-link" href="suppliers">
+                                    <span class="bi bi-truck" aria-hidden="true"></span> Suppliers
+                                </NavLink>
+                            </div>
+                        </Authorized>
+                    </AuthorizeView>
 
-                <AuthorizeView Policy="Purchase.View">
-                    <Authorized Context="purchaseAuth">
-                        <div class="nav-item px-3">
-                            <NavLink class="nav-link" href="purchases">
-                                <span class="bi bi-bag-check" aria-hidden="true"></span> Purchases
-                            </NavLink>
-                        </div>
-                    </Authorized>
-                </AuthorizeView>
+                    <AuthorizeView Policy="Purchase.View">
+                        <Authorized Context="purchaseAuth">
+                            <div class="nav-item px-3">
+                                <NavLink class="nav-link" href="purchases">
+                                    <span class="bi bi-bag-check" aria-hidden="true"></span> Purchases
+                                </NavLink>
+                            </div>
+                        </Authorized>
+                    </AuthorizeView>
 
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="company">
-                        <span class="bi bi-shop-window" aria-hidden="true"></span> Store Profile
-                    </NavLink>
-                </div>
+                    <AuthorizeView Policy="Receipt.View">
+                        <Authorized Context="receiptAuth">
+                            <div class="nav-item px-3">
+                                <NavLink class="nav-link" href="receipts">
+                                    <span class="bi bi-cash-coin" aria-hidden="true"></span> Receipts
+                                </NavLink>
+                            </div>
+                        </Authorized>
+                    </AuthorizeView>
 
-                <AuthorizeView Policy="User.Manage">
-                    <Authorized Context="innerAuth">
-                        <div class="nav-item px-3">
-                            <NavLink class="nav-link" href="users">
-                                <span class="bi bi-people-fill" aria-hidden="true"></span> Users
-                            </NavLink>
-                        </div>
-                    </Authorized>
-                </AuthorizeView>
+                    <AuthorizeView Policy="Payment.View">
+                        <Authorized Context="paymentAuth">
+                            <div class="nav-item px-3">
+                                <NavLink class="nav-link" href="payments">
+                                    <span class="bi bi-wallet2" aria-hidden="true"></span> Payments
+                                </NavLink>
+                            </div>
+                        </Authorized>
+                    </AuthorizeView>
+
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="company">
+                            <span class="bi bi-shop-window" aria-hidden="true"></span> Store Profile
+                        </NavLink>
+                    </div>
+
+                    <AuthorizeView Policy="User.Manage">
+                        <Authorized Context="innerAuth">
+                            <div class="nav-item px-3">
+                                <NavLink class="nav-link" href="users">
+                                    <span class="bi bi-people-fill" aria-hidden="true"></span> Users
+                                </NavLink>
+                            </div>
+                        </Authorized>
+                    </AuthorizeView>
+                }
+                else
+                {
+                    <AuthorizeView Roles="Manager">
+                        <Authorized Context="managerAuth">
+                            <div class="nav-section-label px-3">Workspace</div>
+                            <div class="nav-item px-3">
+                                <NavLink class="nav-link" href="company">
+                                    <span class="bi bi-shop-window" aria-hidden="true"></span> Store Profile
+                                </NavLink>
+                            </div>
+                        </Authorized>
+                    </AuthorizeView>
+                }
 
                 <div class="nav-section-label px-3">Account</div>
                 <div class="nav-item px-3">
@@ -100,3 +137,8 @@
         </AuthorizeView>
     </nav>
 </div>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+}

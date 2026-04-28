@@ -1,0 +1,126 @@
+@page "/receipts"
+@attribute [Authorize(Policy = "Receipt.View")]
+@using Shsmg.Pharma.Application.DTOs
+@using Shsmg.Pharma.Application.Services
+@rendermode InteractiveServer
+
+@inject IReceiptService ReceiptService
+@inject NavigationManager Navigation
+@inject Shsmg.Pharma.WebUI.Services.PermissionService PermissionService
+
+<PageTitle>Receipts</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+        <div>
+            <h2 class="mb-1">Receipts</h2>
+            <p class="text-muted mb-0">Track collections received from customers against invoices or account balances.</p>
+        </div>
+        @if (CanCreate)
+        {
+            <button class="btn btn-primary" @onclick='() => Navigation.NavigateTo("/receipts/new")'>New receipt</button>
+        }
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-8">
+                    <label class="form-label fw-semibold">Search</label>
+                    <input class="form-control" placeholder="Search by receipt number, customer, invoice, or reference"
+                           @bind="SearchText" @bind:event="oninput" />
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-outline-secondary w-100" @onclick="LoadAsync">Refresh</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
+    }
+    else if (!Receipts.Any())
+    {
+        <div class="alert alert-light border">No receipts found.</div>
+    }
+    else
+    {
+        <div class="card shadow-sm border-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Receipt</th>
+                            <th>Date</th>
+                            <th>Customer</th>
+                            <th>Invoice</th>
+                            <th>Method</th>
+                            <th class="text-end">Amount</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var receipt in Receipts)
+                        {
+                            <tr>
+                                <td>@receipt.ReceiptNumber</td>
+                                <td>@receipt.Date.ToString("dd-MMM-yyyy")</td>
+                                <td>@receipt.CustomerName</td>
+                                <td>@(string.IsNullOrWhiteSpace(receipt.InvoiceNumber) ? "-" : receipt.InvoiceNumber)</td>
+                                <td>@receipt.PaymentMethod</td>
+                                <td class="text-end">@receipt.Amount.ToString("C")</td>
+                                <td class="text-end">
+                                    <div class="btn-group btn-group-sm">
+                                        @if (CanEdit)
+                                        {
+                                            <button class="btn btn-outline-primary" @onclick='() => Navigation.NavigateTo($"/receipts/edit/{receipt.Id}")'>Edit</button>
+                                        }
+                                        @if (CanDelete)
+                                        {
+                                            <button class="btn btn-outline-danger" @onclick='() => DeleteAsync(receipt.Id)'>Delete</button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<ReceiptSummaryDto> Receipts = [];
+    private string SearchText = string.Empty;
+    private bool IsLoading = true;
+    private bool CanCreate;
+    private bool CanEdit;
+    private bool CanDelete;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CanCreate = await PermissionService.HasPermissionAsync("Receipt.Create");
+        CanEdit = await PermissionService.HasPermissionAsync("Receipt.Edit");
+        CanDelete = await PermissionService.HasPermissionAsync("Receipt.Delete");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        IsLoading = true;
+        Receipts = (await ReceiptService.GetReceiptsAsync(SearchText)).ToList();
+        IsLoading = false;
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        if (!CanDelete)
+            return;
+
+        await ReceiptService.DeleteReceiptAsync(id);
+        await LoadAsync();
+    }
+}

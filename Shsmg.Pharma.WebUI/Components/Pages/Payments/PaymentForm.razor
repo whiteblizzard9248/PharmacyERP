@@ -1,0 +1,255 @@
+@page "/payments/new"
+@page "/payments/edit/{PaymentId:guid}"
+@attribute [Authorize(Policy = "Payment.View")]
+@using FluentValidation
+@using Shsmg.Pharma.Application.DTOs
+@using Shsmg.Pharma.Application.Services
+@rendermode InteractiveServer
+
+@inject IPaymentService PaymentService
+@inject ISupplierService SupplierService
+@inject IPurchaseInvoiceService PurchaseInvoiceService
+@inject NavigationManager Navigation
+@inject Shsmg.Pharma.WebUI.Services.PermissionService PermissionService
+
+<PageTitle>@(IsEdit ? "Edit Payment" : "New Payment")</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">@(IsEdit ? "Edit Payment" : "New Payment")</h2>
+            <p class="text-muted mb-0">Record supplier payouts with an optional link to a purchase invoice.</p>
+        </div>
+        <button type="button" class="btn btn-outline-secondary"
+                @onclick='() => Navigation.NavigateTo("/payments")'>Back</button>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
+    }
+    else if (!CanSave)
+    {
+        <div class="alert alert-warning">You do not have permission to modify payments.</div>
+    }
+    else
+    {
+        <EditForm Model="Model" OnValidSubmit="SaveAsync" FormName="PaymentForm">
+            @if (Errors.Any())
+            {
+                <div class="alert alert-danger">
+                    <ul class="mb-0 ps-3">
+                        @foreach (var error in Errors)
+                        {
+                            <li>@error</li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Supplier</label>
+                            <InputSelect class="form-select" @bind-Value="Model.SupplierId"
+                                         @bind-Value:after="OnSupplierChangedAsync">
+                                <option value="@Guid.Empty">Select supplier</option>
+                                @foreach (var supplier in Suppliers)
+                                {
+                                    <option value="@supplier.Id">@supplier.Name</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Purchase invoice <span
+                                class="text-muted fw-normal">(optional)</span></label>
+                                <InputSelect class="form-select" @bind-Value="Model.PurchaseInvoiceId">
+                                    <option value="">Select purchase invoice</option>
+                                    @foreach (var invoice in FilteredPurchaseInvoices)
+                                    {
+                                        <option value="@invoice.Id">@invoice.PurchaseInvoiceNumber - @invoice.SupplierName</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Payment date</label>
+                                <InputDate class="form-control" @bind-Value="DateLocal" Type="InputDateType.DateTimeLocal" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Payment number</label>
+                                <InputText class="form-control" @bind-Value="Model.PaymentNumber" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Amount</label>
+                                <InputNumber class="form-control" @bind-Value="Model.Amount" step="0.01" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Payment method</label>
+                                <InputSelect class="form-select" @bind-Value="Model.PaymentMethod">
+                                    @foreach (var method in PaymentMethods)
+                                    {
+                                        <option value="@method">@method</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Reference number</label>
+                                <InputText class="form-control" @bind-Value="Model.ReferenceNumber" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Notes</label>
+                                <InputTextArea class="form-control" rows="3" @bind-Value="Model.Notes" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end gap-2 mt-3">
+                    <button type="button" class="btn btn-outline-secondary"
+                            @onclick='() => Navigation.NavigateTo("/payments")'>Cancel</button>
+                    <button type="submit" class="btn btn-primary" disabled="@IsSaving">@(IsSaving ? "Saving..." : "Save payment")</button>
+                </div>
+            </EditForm>
+        }
+    </div>
+
+@code {
+    [Parameter] public Guid? PaymentId { get; set; }
+
+    private bool IsEdit => PaymentId.HasValue;
+    private bool IsLoading = true;
+    private bool IsSaving;
+    private bool CanSave;
+    private CreatePaymentDto Model = new();
+    private List<SupplierDto> Suppliers = [];
+    private List<PurchaseInvoiceSummaryDto> PurchaseInvoices = [];
+    private List<PurchaseInvoiceSummaryDto> FilteredPurchaseInvoices = [];
+    private List<string> Errors = [];
+    private static readonly string[] PaymentMethods = ["Cash", "Card", "UPI", "Bank Transfer", "Cheque"];
+
+    private DateTime? DateLocal
+    {
+        get
+        {
+            if (Model.Date == default)
+                return null;
+
+            // Treat stored value as UTC → convert to local for UI
+            return DateTime.SpecifyKind(Model.Date, DateTimeKind.Utc).ToLocalTime();
+        }
+        set
+        {
+            if (value is null)
+            {
+                Model.Date = default;
+                return;
+            }
+
+            var local = value.Value;
+
+            // datetime-local gives Unspecified → treat as Local
+            if (local.Kind == DateTimeKind.Unspecified)
+                local = DateTime.SpecifyKind(local, DateTimeKind.Local);
+
+            // Convert to UTC before storing in model
+            Model.Date = local.ToUniversalTime();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        CanSave = IsEdit
+            ? await PermissionService.HasPermissionAsync("Payment.Edit")
+            : await PermissionService.HasPermissionAsync("Payment.Create");
+
+        Suppliers = (await SupplierService.GetSuppliersAsync()).ToList();
+        PurchaseInvoices = (await PurchaseInvoiceService.GetPurchaseInvoicesAsync()).ToList();
+
+        if (IsEdit)
+        {
+            var existing = await PaymentService.GetPaymentByIdAsync(PaymentId!.Value);
+            if (existing is not null)
+            {
+                Model = new CreatePaymentDto
+                {
+                    PaymentNumber = existing.PaymentNumber,
+                    Date = existing.Date,
+                    SupplierId = existing.SupplierId,
+                    PurchaseInvoiceId = existing.PurchaseInvoiceId,
+                    Amount = existing.Amount,
+                    PaymentMethod = existing.PaymentMethod,
+                    ReferenceNumber = existing.ReferenceNumber,
+                    Notes = existing.Notes,
+                    RowVersion = existing.RowVersion
+                };
+            }
+        }
+
+        await OnSupplierChangedAsync();
+        IsLoading = false;
+    }
+
+    private Task OnSupplierChangedAsync()
+    {
+        FilteredPurchaseInvoices = PurchaseInvoices
+            .Where(x => !Model.SupplierId.Equals(Guid.Empty) && x.SupplierId == Model.SupplierId)
+            .ToList();
+
+        if (Model.PurchaseInvoiceId.HasValue && FilteredPurchaseInvoices.All(x => x.Id != Model.PurchaseInvoiceId.Value))
+        {
+            Model.PurchaseInvoiceId = null;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (IsSaving || !CanSave)
+            return;
+
+        IsSaving = true;
+        Errors.Clear();
+
+        try
+        {
+            if (IsEdit)
+            {
+                await PaymentService.UpdatePaymentAsync(new UpdatePaymentDto
+                {
+                    Id = PaymentId!.Value,
+                    PaymentNumber = Model.PaymentNumber,
+                    Date = Model.Date,
+                    SupplierId = Model.SupplierId,
+                    PurchaseInvoiceId = Model.PurchaseInvoiceId,
+                    Amount = Model.Amount,
+                    PaymentMethod = Model.PaymentMethod,
+                    ReferenceNumber = Model.ReferenceNumber,
+                    Notes = Model.Notes,
+                    RowVersion = Model.RowVersion
+                });
+            }
+            else
+            {
+                await PaymentService.CreatePaymentAsync(Model);
+            }
+
+            Navigation.NavigateTo("/payments");
+        }
+        catch (ValidationException vex)
+        {
+            Errors = vex.Errors.Select(x => x.ErrorMessage).Distinct().ToList();
+        }
+        catch (Exception ex)
+        {
+            Errors = [ex.Message];
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+}

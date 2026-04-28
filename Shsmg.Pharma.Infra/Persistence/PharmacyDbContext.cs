@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Shsmg.Pharma.Domain.Models;
 using Shsmg.Pharma.Infra.Auth;
 using Shsmg.Pharma.Application.Common;
@@ -17,6 +18,8 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options, RowV
     public DbSet<PurchaseInvoice> PurchaseInvoices { get; set; }
     public DbSet<PurchaseInvoiceItem> PurchaseInvoiceItems { get; set; }
     public DbSet<Customer> Customers { get; set; }
+    public DbSet<Receipt> Receipts { get; set; }
+    public DbSet<Payment> Payments { get; set; }
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.AddInterceptors(rowVersionInterceptor);
@@ -57,6 +60,7 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options, RowV
             entity.Property(e => e.Email).HasMaxLength(255);
             entity.Property(e => e.GstNumber).HasMaxLength(30);
             entity.Property(e => e.Address).HasColumnType("text");
+            entity.Property(e => e.OutstandingAmount).HasPrecision(12, 2).HasDefaultValue(0m);
 
             entity.HasIndex(e => e.Name);
             entity.HasIndex(e => e.PhoneNumber);
@@ -133,6 +137,11 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options, RowV
                 .WithOne()
                 .HasForeignKey(e => e.PurchaseInvoiceId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(e => e.Payments)
+                .WithOne(e => e.PurchaseInvoice)
+                .HasForeignKey(e => e.PurchaseInvoiceId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             entity.HasQueryFilter(e => !e.IsDeleted);
         });
@@ -258,6 +267,11 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options, RowV
                   .WithOne(i => i.Customer)
                   .HasForeignKey(i => i.CustomerId)
                   .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasMany(c => c.Receipts)
+                  .WithOne(r => r.Customer)
+                  .HasForeignKey(r => r.CustomerId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         // 6. InventoryItem Configuration
@@ -280,10 +294,126 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options, RowV
 
             entity.HasQueryFilter(e => !e.IsDeleted);
         });
+
+        builder.Entity<Receipt>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ReceiptNumber).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Amount).HasPrecision(12, 2);
+            entity.Property(e => e.PaymentMethod).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.ReferenceNumber).HasMaxLength(100);
+            entity.Property(e => e.Notes).HasColumnType("text");
+            entity.Property(e => e.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
+
+            entity.HasIndex(e => e.ReceiptNumber).IsUnique();
+            entity.HasIndex(e => e.ReceiptDate);
+            entity.HasIndex(e => e.CustomerId);
+            entity.HasIndex(e => e.InvoiceId);
+
+            entity.HasOne(e => e.Customer)
+                .WithMany(c => c.Receipts)
+                .HasForeignKey(e => e.CustomerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.Invoice)
+                .WithMany(i => i.Receipts)
+                .HasForeignKey(e => e.InvoiceId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasQueryFilter(e => !e.IsDeleted);
+        });
+
+        builder.Entity<Payment>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.PaymentNumber).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Amount).HasPrecision(12, 2);
+            entity.Property(e => e.PaymentMethod).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.ReferenceNumber).HasMaxLength(100);
+            entity.Property(e => e.Notes).HasColumnType("text");
+            entity.Property(e => e.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
+
+            entity.HasIndex(e => e.PaymentNumber).IsUnique();
+            entity.HasIndex(e => e.PaymentDate);
+            entity.HasIndex(e => e.SupplierId);
+            entity.HasIndex(e => e.PurchaseInvoiceId);
+
+            entity.HasOne(e => e.Supplier)
+                .WithMany(s => s.Payments)
+                .HasForeignKey(e => e.SupplierId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.PurchaseInvoice)
+                .WithMany(p => p.Payments)
+                .HasForeignKey(e => e.PurchaseInvoiceId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasQueryFilter(e => !e.IsDeleted);
+        });
     }
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         return await base.SaveChangesAsync(cancellationToken);
     }
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder builder)
+    {
+        // DateTime
+        builder.Properties<DateTime>()
+            .HaveConversion<UtcDateTimeConverter>();
+
+        builder.Properties<DateTime?>()
+            .HaveConversion<NullableUtcDateTimeConverter>();
+
+        // DateTimeOffset (preferred going forward)
+        builder.Properties<DateTimeOffset>()
+            .HaveConversion<UtcDateTimeOffsetConverter>();
+
+        builder.Properties<DateTimeOffset?>()
+            .HaveConversion<NullableUtcDateTimeOffsetConverter>();
+    }
+}
+
+public sealed class UtcDateTimeConverter : ValueConverter<DateTime, DateTime>
+{
+    public UtcDateTimeConverter()
+        : base(
+            v => v.Kind == DateTimeKind.Utc ? v : v.ToUniversalTime(),
+            v => DateTime.SpecifyKind(v, DateTimeKind.Utc))
+    { }
+}
+
+// DateTime (nullable)
+public sealed class NullableUtcDateTimeConverter : ValueConverter<DateTime?, DateTime?>
+{
+    public NullableUtcDateTimeConverter()
+        : base(
+            v => v.HasValue
+                ? (v.Value.Kind == DateTimeKind.Utc ? v.Value : v.Value.ToUniversalTime())
+                : v,
+            v => v.HasValue
+                ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc)
+                : v)
+    { }
+}
+
+// DateTimeOffset (non-nullable)
+public sealed class UtcDateTimeOffsetConverter : ValueConverter<DateTimeOffset, DateTimeOffset>
+{
+    public UtcDateTimeOffsetConverter()
+        : base(
+            v => v.ToUniversalTime(),
+            v => v)
+    { }
+}
+
+// DateTimeOffset (nullable)
+public sealed class NullableUtcDateTimeOffsetConverter : ValueConverter<DateTimeOffset?, DateTimeOffset?>
+{
+    public NullableUtcDateTimeOffsetConverter()
+        : base(
+            v => v.HasValue ? v.Value.ToUniversalTime() : v,
+            v => v)
+    { }
 }

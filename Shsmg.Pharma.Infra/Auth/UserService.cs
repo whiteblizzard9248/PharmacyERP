@@ -13,6 +13,7 @@ public sealed class UserService(UserManager<AppUser> userManager, IHttpContextAc
 
     public async Task<IEnumerable<UserDto>> GetUsersAsync()
     {
+        var currentUserId = GetCurrentUserId();
         var users = _userManager.Users
             .Where(user => user.LockoutEnd == null || user.LockoutEnd <= DateTimeOffset.UtcNow)
             .ToList();
@@ -21,12 +22,17 @@ public sealed class UserService(UserManager<AppUser> userManager, IHttpContextAc
         foreach (var user in users)
         {
             var roles = await _userManager.GetRolesAsync(user);
-            userDtos.Add(new UserDto
+            if (IsCurrentUserAdmin() ||
+                (IsCurrentUserManager() && (roles.Contains(Roles.Employee) || user.Id == currentUserId)) ||
+                (!IsCurrentUserAdmin() && !IsCurrentUserManager() && user.Id == currentUserId))
             {
-                Id = user.Id,
-                Email = user.Email!,
-                Roles = [.. roles]
-            });
+                userDtos.Add(new UserDto
+                {
+                    Id = user.Id,
+                    Email = user.Email!,
+                    Roles = [.. roles]
+                });
+            }
         }
 
         return userDtos;

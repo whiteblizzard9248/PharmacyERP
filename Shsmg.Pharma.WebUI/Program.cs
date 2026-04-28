@@ -96,6 +96,18 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("Purchase.Edit", policy => policy.RequireClaim("Permission", Permissions.PurchaseEdit));
     options.AddPolicy("Purchase.Delete", policy => policy.RequireClaim("Permission", Permissions.PurchaseDelete));
 
+    // Receipt permissions
+    options.AddPolicy("Receipt.View", policy => policy.RequireClaim("Permission", Permissions.ReceiptView));
+    options.AddPolicy("Receipt.Create", policy => policy.RequireClaim("Permission", Permissions.ReceiptCreate));
+    options.AddPolicy("Receipt.Edit", policy => policy.RequireClaim("Permission", Permissions.ReceiptEdit));
+    options.AddPolicy("Receipt.Delete", policy => policy.RequireClaim("Permission", Permissions.ReceiptDelete));
+
+    // Payment permissions
+    options.AddPolicy("Payment.View", policy => policy.RequireClaim("Permission", Permissions.PaymentView));
+    options.AddPolicy("Payment.Create", policy => policy.RequireClaim("Permission", Permissions.PaymentCreate));
+    options.AddPolicy("Payment.Edit", policy => policy.RequireClaim("Permission", Permissions.PaymentEdit));
+    options.AddPolicy("Payment.Delete", policy => policy.RequireClaim("Permission", Permissions.PaymentDelete));
+
     // User management
     options.AddPolicy("User.Manage", policy => policy.RequireClaim("Permission", Permissions.UserManage));
 });

@@ -180,7 +180,12 @@ public sealed class InvoiceService(
         // Record purchase in customer service if customer is provided
         if (customer != null && dto.CustomerId.HasValue)
         {
-            await _customerService.RecordPurchaseAsync(dto.CustomerId.Value, invoice.NetTotal, invoice.Id);
+            var purchaseRecorded = await _customerService.RecordPurchaseAsync(dto.CustomerId.Value, invoice.NetTotal, invoice.Id);
+            if (!purchaseRecorded)
+            {
+                _logger.LogError($"Failed to record purchase for customer {dto.CustomerId.Value} on invoice {invoice.Id}. Customer may not exist.");
+                throw new InvalidOperationException($"Failed to update customer outstanding amount for invoice {invoice.Id}.");
+            }
         }
 
         _logger.LogInformation("Invoice created successfully.");

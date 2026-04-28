@@ -310,12 +310,22 @@ public class CustomerService(ICustomerRepository repository) : ICustomerService
     {
         var customer = await _repository.GetByIdAsync(customerId);
         if (customer == null)
-            return false;
+        {
+            return false; // Return false if customer doesn't exist for graceful handling
+        }
 
-        customer.RecordPurchase(amount);
-        customer.LastPurchaseDate = DateTime.UtcNow;
-        await _repository.UpdateAsync(customer);
-        return true;
+        try
+        {
+            customer.RecordPurchase(amount);
+            customer.LastPurchaseDate = DateTime.UtcNow;
+            await _repository.UpdateAsync(customer);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            // Log the exception and return false to allow caller to handle it
+            return false;
+        }
     }
 
     public async Task<bool> BlacklistCustomerAsync(BlacklistCustomerDto dto)

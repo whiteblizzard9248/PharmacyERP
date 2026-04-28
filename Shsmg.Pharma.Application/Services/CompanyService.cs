@@ -7,11 +7,14 @@ using Shsmg.Pharma.Domain.Models;
 
 namespace Shsmg.Pharma.Application.Services;
 
-public sealed class CompanyService(IPharmacyDbContext context, ILogger<CompanyService> logger, ILicenseService licenseService) : ICompanyService
+public sealed class CompanyService(IPharmacyDbContext context,
+ ILogger<CompanyService> logger,
+  ILicenseService licenseService) : ICompanyService
 {
     private readonly IPharmacyDbContext _context = context;
     private readonly ILogger<CompanyService> _logger = logger;
     private readonly ILicenseService _licenseService = licenseService;
+
 
     public async Task<CompanyDto?> GetCompanyAsync()
     {
@@ -45,7 +48,7 @@ public sealed class CompanyService(IPharmacyDbContext context, ILogger<CompanySe
             ? await _context.Companies.FirstOrDefaultAsync(c => c.Id == dto.Id && !c.IsDeleted)
             : await _context.Companies.FirstOrDefaultAsync(c => !c.IsDeleted);
         var currentValidationResult = _licenseService.Validate(dto.LicenseKey!, dto.HardwareId!);
-        var currentValidationResultStr = JsonSerializer.Serialize(currentValidationResult, new JsonSerializerOptions { WriteIndented = true });
+        var currentValidationResultStr = JsonSerializer.Serialize(currentValidationResult, JsonDefaults.StandardOptions);
         _logger.LogInformation($"License info {currentValidationResultStr}");
 
         if (existingCompany != null)

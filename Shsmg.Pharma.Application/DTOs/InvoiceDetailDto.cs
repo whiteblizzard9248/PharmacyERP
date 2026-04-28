@@ -10,7 +10,7 @@ public class InvoiceDetailDto
     public string DoctorName { get; set; } = string.Empty;
     public Guid? CustomerId { get; set; }
     public string CustomerName { get; set; } = string.Empty;
-    public DateTime Date { get; set; } = DateTime.Now;
+    public DateTime Date { get; set; } = DateTime.UtcNow;
 
     public List<InvoiceItemDto> Items { get; set; } = [];
 

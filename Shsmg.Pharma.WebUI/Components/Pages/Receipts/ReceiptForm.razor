@@ -1,0 +1,259 @@
+@page "/receipts/new"
+@page "/receipts/edit/{ReceiptId:guid}"
+@attribute [Authorize(Policy = "Receipt.View")]
+@using FluentValidation
+@using Shsmg.Pharma.Application.DTOs
+@using Shsmg.Pharma.Application.Services
+@rendermode InteractiveServer
+
+@inject IReceiptService ReceiptService
+@inject ICustomerService CustomerService
+@inject IInvoiceService InvoiceService
+@inject NavigationManager Navigation
+@inject Shsmg.Pharma.WebUI.Services.PermissionService PermissionService
+
+<PageTitle>@(IsEdit ? "Edit Receipt" : "New Receipt")</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">@(IsEdit ? "Edit Receipt" : "New Receipt")</h2>
+            <p class="text-muted mb-0">Record customer collections with an optional link to a sales invoice.</p>
+        </div>
+        <button type="button" class="btn btn-outline-secondary"
+                @onclick='() => Navigation.NavigateTo("/receipts")'>Back</button>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
+    }
+    else if (!CanSave)
+    {
+        <div class="alert alert-warning">You do not have permission to modify receipts.</div>
+    }
+    else
+    {
+        <EditForm Model="Model" OnValidSubmit="SaveAsync" FormName="ReceiptForm">
+            @if (Errors.Any())
+            {
+                <div class="alert alert-danger">
+                    <ul class="mb-0 ps-3">
+                        @foreach (var error in Errors)
+                        {
+                            <li>@error</li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Customer</label>
+                            <InputSelect class="form-select" @bind-Value="Model.CustomerId"
+                                         @bind-Value:after="OnCustomerChangedAsync">
+                                <option value="@Guid.Empty">Select customer</option>
+                                @foreach (var customer in Customers)
+                                {
+                                    <option value="@customer.Id">@customer.Name (@customer.OutstandingAmount.ToString("C"))
+                                    </option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Invoice <span
+                                class="text-muted fw-normal">(optional)</span></label>
+                                <InputSelect class="form-select" @bind-Value="Model.InvoiceId">
+                                    <option value="">Select invoice</option>
+                                    @foreach (var invoice in FilteredInvoices)
+                                    {
+                                        <option value="@invoice.Id">@invoice.InvoiceNumber - @invoice.PatientName</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Receipt date</label>
+                                <InputDate class="form-control" @bind-Value="DateLocal" Type="InputDateType.DateTimeLocal" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Receipt number</label>
+                                <InputText class="form-control" @bind-Value="Model.ReceiptNumber" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Amount</label>
+                                <InputNumber class="form-control" @bind-Value="Model.Amount" step="0.01" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Payment method</label>
+                                <InputSelect class="form-select" @bind-Value="Model.PaymentMethod">
+                                    @foreach (var method in PaymentMethods)
+                                    {
+                                        <option value="@method">@method</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Reference number</label>
+                                <InputText class="form-control" @bind-Value="Model.ReferenceNumber" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Notes</label>
+                                <InputTextArea class="form-control" rows="3" @bind-Value="Model.Notes" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end gap-2 mt-3">
+                    <button type="button" class="btn btn-outline-secondary"
+                            @onclick='() => Navigation.NavigateTo("/receipts")'>Cancel</button>
+                    <button type="submit" class="btn btn-primary" disabled="@IsSaving">@(IsSaving ? "Saving..." : "Save receipt")</button>
+                </div>
+            </EditForm>
+        }
+    </div>
+
+@code {
+    [Parameter] public Guid? ReceiptId { get; set; }
+
+    private bool IsEdit => ReceiptId.HasValue;
+    private bool IsLoading = true;
+    private bool IsSaving;
+    private bool CanSave;
+    private CreateReceiptDto Model = new();
+    private List<CustomerDto> Customers = [];
+    private List<InvoiceSummaryDto> Invoices = [];
+    private List<InvoiceSummaryDto> FilteredInvoices = [];
+    private List<string> Errors = [];
+    private static readonly string[] PaymentMethods = ["Cash", "Card", "UPI", "Bank Transfer", "Cheque"];
+
+    private DateTime? DateLocal
+    {
+        get
+        {
+            if (Model.Date == default)
+                return null;
+
+            // Treat stored value as UTC → convert to local for UI
+            return DateTime.SpecifyKind(Model.Date, DateTimeKind.Utc).ToLocalTime();
+        }
+        set
+        {
+            if (value is null)
+            {
+                Model.Date = default;
+                return;
+            }
+
+            var local = value.Value;
+
+            // datetime-local gives Unspecified → treat as Local
+            if (local.Kind == DateTimeKind.Unspecified)
+                local = DateTime.SpecifyKind(local, DateTimeKind.Local);
+
+            // Convert to UTC before storing in model
+            Model.Date = local.ToUniversalTime();
+        }
+    }
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        CanSave = IsEdit
+            ? await PermissionService.HasPermissionAsync("Receipt.Edit")
+            : await PermissionService.HasPermissionAsync("Receipt.Create");
+
+        Customers = (await CustomerService.GetCustomersAsync(new CustomerQuery { PageNumber = 1, PageSize = 500 },
+default)).Customers.ToList();
+        Invoices = (await InvoiceService.GetInvoiceSummariesAsync()).ToList();
+
+        if (IsEdit)
+        {
+            var existing = await ReceiptService.GetReceiptByIdAsync(ReceiptId!.Value);
+            if (existing is not null)
+            {
+                Model = new CreateReceiptDto
+                {
+                    ReceiptNumber = existing.ReceiptNumber,
+                    Date = existing.Date,
+                    CustomerId = existing.CustomerId,
+                    InvoiceId = existing.InvoiceId,
+                    Amount = existing.Amount,
+                    PaymentMethod = existing.PaymentMethod,
+                    ReferenceNumber = existing.ReferenceNumber,
+                    Notes = existing.Notes,
+                    RowVersion = existing.RowVersion
+                };
+            }
+        }
+
+        await OnCustomerChangedAsync();
+        IsLoading = false;
+    }
+
+    private Task OnCustomerChangedAsync()
+    {
+        FilteredInvoices = Invoices
+            .Where(x => !Model.CustomerId.Equals(Guid.Empty) && x.CustomerId == Model.CustomerId)
+            .ToList();
+
+        if (Model.InvoiceId.HasValue && FilteredInvoices.All(x => x.Id != Model.InvoiceId.Value))
+        {
+            Model.InvoiceId = null;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (IsSaving || !CanSave)
+            return;
+
+        IsSaving = true;
+        Errors.Clear();
+
+        try
+        {
+            if (IsEdit)
+            {
+                await ReceiptService.UpdateReceiptAsync(new UpdateReceiptDto
+                {
+                    Id = ReceiptId!.Value,
+                    ReceiptNumber = Model.ReceiptNumber,
+                    Date = Model.Date,
+                    CustomerId = Model.CustomerId,
+                    InvoiceId = Model.InvoiceId,
+                    Amount = Model.Amount,
+                    PaymentMethod = Model.PaymentMethod,
+                    ReferenceNumber = Model.ReferenceNumber,
+                    Notes = Model.Notes,
+                    RowVersion = Model.RowVersion
+                });
+            }
+            else
+            {
+                await ReceiptService.CreateReceiptAsync(Model);
+            }
+
+            Navigation.NavigateTo("/receipts");
+        }
+        catch (ValidationException vex)
+        {
+            Errors = vex.Errors.Select(x => x.ErrorMessage).Distinct().ToList();
+        }
+        catch (Exception ex)
+        {
+            Errors = [ex.Message];
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+}

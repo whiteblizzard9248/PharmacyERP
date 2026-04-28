@@ -25,6 +25,16 @@ public static class Permissions
     public const string PurchaseEdit = "Purchase.Edit";
     public const string PurchaseDelete = "Purchase.Delete";
 
+    public const string ReceiptView = "Receipt.View";
+    public const string ReceiptCreate = "Receipt.Create";
+    public const string ReceiptEdit = "Receipt.Edit";
+    public const string ReceiptDelete = "Receipt.Delete";
+
+    public const string PaymentView = "Payment.View";
+    public const string PaymentCreate = "Payment.Create";
+    public const string PaymentEdit = "Payment.Edit";
+    public const string PaymentDelete = "Payment.Delete";
+
     public const string UserManage = "User.Manage";
 }
 
@@ -55,6 +65,14 @@ public static class Roles
             Permissions.PurchaseCreate,
             Permissions.PurchaseEdit,
             Permissions.PurchaseDelete,
+            Permissions.ReceiptView,
+            Permissions.ReceiptCreate,
+            Permissions.ReceiptEdit,
+            Permissions.ReceiptDelete,
+            Permissions.PaymentView,
+            Permissions.PaymentCreate,
+            Permissions.PaymentEdit,
+            Permissions.PaymentDelete,
             Permissions.UserManage
         ],
         [Manager] = [
@@ -76,6 +94,14 @@ public static class Roles
             Permissions.PurchaseCreate,
             Permissions.PurchaseEdit,
             Permissions.PurchaseDelete,
+            Permissions.ReceiptView,
+            Permissions.ReceiptCreate,
+            Permissions.ReceiptEdit,
+            Permissions.ReceiptDelete,
+            Permissions.PaymentView,
+            Permissions.PaymentCreate,
+            Permissions.PaymentEdit,
+            Permissions.PaymentDelete,
             Permissions.UserManage
         ],
         [Employee] = [
@@ -83,6 +109,8 @@ public static class Roles
             Permissions.InventoryView,
             Permissions.SupplierView,
             Permissions.PurchaseView,
+            Permissions.ReceiptView,
+            Permissions.ReceiptCreate,
             Permissions.InvoiceCreate,
             Permissions.InvoiceEdit,
             Permissions.InvoiceView

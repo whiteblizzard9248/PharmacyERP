@@ -1,0 +1,126 @@
+@page "/payments"
+@attribute [Authorize(Policy = "Payment.View")]
+@using Shsmg.Pharma.Application.DTOs
+@using Shsmg.Pharma.Application.Services
+@rendermode InteractiveServer
+
+@inject IPaymentService PaymentService
+@inject NavigationManager Navigation
+@inject Shsmg.Pharma.WebUI.Services.PermissionService PermissionService
+
+<PageTitle>Payments</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+        <div>
+            <h2 class="mb-1">Payments</h2>
+            <p class="text-muted mb-0">Track payouts made to suppliers against purchase invoices or open balances.</p>
+        </div>
+        @if (CanCreate)
+        {
+            <button class="btn btn-primary" @onclick='() => Navigation.NavigateTo("/payments/new")'>New payment</button>
+        }
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-8">
+                    <label class="form-label fw-semibold">Search</label>
+                    <input class="form-control" placeholder="Search by payment number, supplier, purchase invoice, or reference"
+                           @bind="SearchText" @bind:event="oninput" />
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-outline-secondary w-100" @onclick="LoadAsync">Refresh</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
+    }
+    else if (!Payments.Any())
+    {
+        <div class="alert alert-light border">No payments found.</div>
+    }
+    else
+    {
+        <div class="card shadow-sm border-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Payment</th>
+                            <th>Date</th>
+                            <th>Supplier</th>
+                            <th>Purchase Invoice</th>
+                            <th>Method</th>
+                            <th class="text-end">Amount</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var payment in Payments)
+                        {
+                            <tr>
+                                <td>@payment.PaymentNumber</td>
+                                <td>@payment.Date.ToString("dd-MMM-yyyy")</td>
+                                <td>@payment.SupplierName</td>
+                                <td>@(string.IsNullOrWhiteSpace(payment.PurchaseInvoiceNumber) ? "-" : payment.PurchaseInvoiceNumber)</td>
+                                <td>@payment.PaymentMethod</td>
+                                <td class="text-end">@payment.Amount.ToString("C")</td>
+                                <td class="text-end">
+                                    <div class="btn-group btn-group-sm">
+                                        @if (CanEdit)
+                                        {
+                                            <button class="btn btn-outline-primary" @onclick='() => Navigation.NavigateTo($"/payments/edit/{payment.Id}")'>Edit</button>
+                                        }
+                                        @if (CanDelete)
+                                        {
+                                            <button class="btn btn-outline-danger" @onclick='() => DeleteAsync(payment.Id)'>Delete</button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<PaymentSummaryDto> Payments = [];
+    private string SearchText = string.Empty;
+    private bool IsLoading = true;
+    private bool CanCreate;
+    private bool CanEdit;
+    private bool CanDelete;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CanCreate = await PermissionService.HasPermissionAsync("Payment.Create");
+        CanEdit = await PermissionService.HasPermissionAsync("Payment.Edit");
+        CanDelete = await PermissionService.HasPermissionAsync("Payment.Delete");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        IsLoading = true;
+        Payments = (await PaymentService.GetPaymentsAsync(SearchText)).ToList();
+        IsLoading = false;
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        if (!CanDelete)
+            return;
+
+        await PaymentService.DeletePaymentAsync(id);
+        await LoadAsync();
+    }
+}

@@ -12,6 +12,7 @@ public class Invoice : BaseEntity, IHasRowVersion
     public Customer? Customer { get; set; }
 
     public List<InvoiceItem> Items { get; set; } = [];
+    public List<Receipt> Receipts { get; set; } = [];
 
     public decimal GrossTotal { get; set; } = decimal.Zero;
     public decimal TaxTotal { get; set; } = decimal.Zero;

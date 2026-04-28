@@ -7,7 +7,7 @@ public class PurchaseInvoiceDetailDto
     public string SupplierInvoiceNumber { get; set; } = string.Empty;
     public Guid SupplierId { get; set; }
     public string SupplierName { get; set; } = string.Empty;
-    public DateTime Date { get; set; } = DateTime.Now;
+    public DateTime Date { get; set; } = DateTime.UtcNow;
     public string Notes { get; set; } = string.Empty;
     public List<PurchaseInvoiceItemDto> Items { get; set; } = [];
     public byte[] RowVersion { get; set; } = [];

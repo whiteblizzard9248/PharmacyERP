@@ -10,6 +10,7 @@ public class PurchaseInvoice : BaseEntity, IHasRowVersion
     public string Notes { get; set; } = string.Empty;
 
     public List<PurchaseInvoiceItem> Items { get; set; } = [];
+    public List<Payment> Payments { get; set; } = [];
 
     public decimal GrossTotal { get; set; } = decimal.Zero;
     public decimal TaxTotal { get; set; } = decimal.Zero;

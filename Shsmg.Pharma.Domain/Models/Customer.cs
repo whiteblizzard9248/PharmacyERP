@@ -110,6 +110,7 @@ public class Customer : BaseEntity
     /// Populated by EF Core for querying related invoices.
     /// </summary>
     public List<Invoice> Invoices { get; set; } = [];
+    public List<Receipt> Receipts { get; set; } = [];
 
     // ==================== BUSINESS LOGIC METHODS ====================
 

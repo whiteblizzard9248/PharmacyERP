@@ -37,6 +37,7 @@ public sealed class PurchaseInvoiceService(
             .Select(x => new PurchaseInvoiceSummaryDto
             {
                 Id = x.Id,
+                SupplierId = x.SupplierId,
                 PurchaseInvoiceNumber = x.PurchaseInvoiceNumber,
                 SupplierInvoiceNumber = x.SupplierInvoiceNumber,
                 SupplierName = x.Supplier != null ? x.Supplier.Name : string.Empty,
@@ -111,6 +112,10 @@ public sealed class PurchaseInvoiceService(
             RowVersion = dto.RowVersion
         };
 
+        var supplier = await _context.Suppliers.FirstOrDefaultAsync(x => x.Id == dto.SupplierId)
+            ?? throw new ValidationException("Supplier not found.");
+        supplier.RecordPurchase(invoice.NetTotal);
+
         foreach (var item in dto.Items)
         {
             var inventoryId = await ApplyStockIncreaseAsync(item, null, now, actor);
@@ -158,6 +163,13 @@ public sealed class PurchaseInvoiceService(
             .FirstOrDefaultAsync(x => x.Id == dto.Id)
             ?? throw new Exception("Purchase invoice not found.");
 
+        var existingSupplier = await _context.Suppliers.FirstOrDefaultAsync(x => x.Id == invoice.SupplierId)
+            ?? throw new Exception("Existing supplier not found.");
+        existingSupplier.OutstandingAmount = Math.Max(0, existingSupplier.OutstandingAmount - invoice.NetTotal);
+
+        var newSupplier = await _context.Suppliers.FirstOrDefaultAsync(x => x.Id == dto.SupplierId)
+            ?? throw new Exception("Supplier not found.");
+
         _context.Entry(invoice).Property(x => x.RowVersion).OriginalValue = dto.RowVersion;
 
         var now = DateTime.UtcNow;
@@ -187,6 +199,8 @@ public sealed class PurchaseInvoiceService(
         invoice.NetTotal = dto.NetTotal;
         invoice.LastModified = now;
         invoice.LastModifiedBy = actor;
+
+        newSupplier.RecordPurchase(invoice.NetTotal);
 
         foreach (var item in dto.Items)
         {
@@ -248,6 +262,10 @@ public sealed class PurchaseInvoiceService(
         {
             return;
         }
+
+        var supplier = await _context.Suppliers.FirstOrDefaultAsync(x => x.Id == invoice.SupplierId)
+            ?? throw new Exception("Supplier not found.");
+        supplier.OutstandingAmount = Math.Max(0, supplier.OutstandingAmount - invoice.NetTotal);
 
         var now = DateTime.UtcNow;
         var actor = _currentUserAccessor.GetCurrentUserIdentifier();
