@@ -155,6 +155,7 @@ public sealed class InvoiceService(
                 Quantity = item.Quantity,
                 Rate = item.Rate,
                 GstPercentage = item.GstPercentage,
+                InventoryMovementApplied = false,
                 LastModified = now,
                 LastModifiedBy = actor,
                 CreatedAt = now,
@@ -175,6 +176,7 @@ public sealed class InvoiceService(
         });
 
         _logger.LogInformation("Creating invoice.");
+        await ApplyInventoryMovementsAsync(invoice.Items, now, actor);
         await _context.SaveChangesAsync();
 
         // Record purchase in customer service if customer is provided
@@ -252,7 +254,9 @@ public sealed class InvoiceService(
         invoice.GrossTotal = dto.GrossTotal;
         invoice.TaxTotal = dto.TotalGst;
         invoice.NetTotal = dto.NetTotal;
+        await RevertInventoryMovementsAsync(invoice.Items.Where(x => !x.IsDeleted), now, actor);
         SyncItems(invoice, dto);
+        await ApplyInventoryMovementsAsync(invoice.Items.Where(x => !x.IsDeleted), now, actor);
         invoice.LastModified = now;
         invoice.LastModifiedBy = actor;
         _context.Entry(invoice).Property(x => x.LastModified).IsModified = true;
@@ -278,6 +282,47 @@ public sealed class InvoiceService(
         _context.ChangeTracker.Clear();
 
         return invoice.Id;
+    }
+
+    public async Task<int> SyncInventoryAsync()
+    {
+        var now = DateTime.UtcNow;
+        var actor = _currentUserAccessor.GetCurrentUserIdentifier();
+        var items = await _context.InvoiceItems
+            .Where(x => !x.IsDeleted && !x.InventoryMovementApplied)
+            .OrderBy(x => x.CreatedAt)
+            .ToListAsync();
+
+        var syncedCount = 0;
+        foreach (var item in items)
+        {
+            if (item.InventoryItemId is null || item.InventoryItemId == Guid.Empty)
+            {
+                item.InventoryItemId = await TryMatchInventoryItemAsync(item);
+            }
+
+            if (item.InventoryItemId is null || item.InventoryItemId == Guid.Empty)
+            {
+                continue;
+            }
+
+            var inventory = await _context.InventoryItems.FirstOrDefaultAsync(x => x.Id == item.InventoryItemId.Value);
+            if (inventory is null)
+            {
+                continue;
+            }
+
+            inventory.QuantityInStock = Math.Max(0, inventory.QuantityInStock - item.Quantity);
+            inventory.LastModified = now;
+            inventory.LastModifiedBy = actor;
+            item.InventoryMovementApplied = true;
+            item.LastModified = now;
+            item.LastModifiedBy = actor;
+            syncedCount++;
+        }
+
+        await _context.SaveChangesAsync();
+        return syncedCount;
     }
 
     private void SyncItems(Invoice invoice, UpdateInvoiceDto dto)
@@ -313,6 +358,7 @@ public sealed class InvoiceService(
                 existing.Quantity = dtoItem.Quantity;
                 existing.Rate = dtoItem.Rate;
                 existing.GstPercentage = dtoItem.GstPercentage;
+                existing.InventoryMovementApplied = false;
                 existing.LastModified = now;
                 existing.LastModifiedBy = _currentUserAccessor.GetCurrentUserIdentifier();
                 existing.IsDeleted = false;
@@ -333,6 +379,7 @@ public sealed class InvoiceService(
                     Quantity = dtoItem.Quantity,
                     Rate = dtoItem.Rate,
                     GstPercentage = dtoItem.GstPercentage,
+                    InventoryMovementApplied = false,
                     CreatedAt = now,
                     CreatedBy = _currentUserAccessor.GetCurrentUserIdentifier(),
                     LastModified = now,
@@ -346,6 +393,96 @@ public sealed class InvoiceService(
                 _context.Entry(newItem).State = EntityState.Added;
             }
         }
+    }
+
+    private async Task ApplyInventoryMovementsAsync(IEnumerable<InvoiceItem> items, DateTime now, string actor)
+    {
+        foreach (var item in items.Where(x => !x.InventoryMovementApplied))
+        {
+            if (item.InventoryItemId is null || item.InventoryItemId == Guid.Empty)
+            {
+                item.InventoryItemId = await TryMatchInventoryItemAsync(item);
+            }
+
+            if (item.InventoryItemId is null || item.InventoryItemId == Guid.Empty)
+            {
+                continue;
+            }
+
+            var inventory = await _context.InventoryItems.FirstOrDefaultAsync(x => x.Id == item.InventoryItemId.Value);
+            if (inventory is null)
+            {
+                continue;
+            }
+
+            inventory.QuantityInStock = Math.Max(0, inventory.QuantityInStock - item.Quantity);
+            inventory.LastModified = now;
+            inventory.LastModifiedBy = actor;
+            item.InventoryMovementApplied = true;
+            item.LastModified = now;
+            item.LastModifiedBy = actor;
+        }
+    }
+
+    private async Task RevertInventoryMovementsAsync(IEnumerable<InvoiceItem> items, DateTime now, string actor)
+    {
+        foreach (var item in items.Where(x => x.InventoryMovementApplied && x.InventoryItemId.HasValue))
+        {
+            var inventory = await _context.InventoryItems.FirstOrDefaultAsync(x => x.Id == item.InventoryItemId!.Value);
+            if (inventory is null)
+            {
+                continue;
+            }
+
+            inventory.QuantityInStock += item.Quantity;
+            inventory.LastModified = now;
+            inventory.LastModifiedBy = actor;
+            item.InventoryMovementApplied = false;
+            item.LastModified = now;
+            item.LastModifiedBy = actor;
+        }
+    }
+
+    private async Task<Guid?> TryMatchInventoryItemAsync(InvoiceItem item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.Batch))
+        {
+            var byBatch = await _context.InventoryItems
+                .Where(x => !x.IsDeleted && x.Batch == item.Batch)
+                .OrderByDescending(x => x.CreatedAt)
+                .Select(x => (Guid?)x.Id)
+                .FirstOrDefaultAsync();
+
+            if (byBatch.HasValue)
+            {
+                return byBatch;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.HsnCode) && !string.IsNullOrWhiteSpace(item.Description))
+        {
+            var byHsnAndDescription = await _context.InventoryItems
+                .Where(x => !x.IsDeleted && x.HsnCode == item.HsnCode && x.Description == (item.Description ?? string.Empty))
+                .OrderByDescending(x => x.CreatedAt)
+                .Select(x => (Guid?)x.Id)
+                .FirstOrDefaultAsync();
+
+            if (byHsnAndDescription.HasValue)
+            {
+                return byHsnAndDescription;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.Description))
+        {
+            return await _context.InventoryItems
+                .Where(x => !x.IsDeleted && x.Description == (item.Description ?? string.Empty))
+                .OrderByDescending(x => x.CreatedAt)
+                .Select(x => (Guid?)x.Id)
+                .FirstOrDefaultAsync();
+        }
+
+        return null;
     }
 
     private static string GenerateInvoiceNumber(DateTime date)

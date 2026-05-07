@@ -34,6 +34,10 @@
     {
         <div class="alert alert-warning">You do not have permission to modify receipts.</div>
     }
+    else if (!IsEdit && SelectedCustomer is not null && !HasOutstandingBalance)
+    {
+        <div class="alert alert-warning">This customer has no outstanding balance; you cannot create a new receipt.</div>
+    }
     else
     {
         <EditForm Model="Model" OnValidSubmit="SaveAsync" FormName="ReceiptForm">
@@ -67,7 +71,8 @@
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Invoice <span
                                 class="text-muted fw-normal">(optional)</span></label>
-                                <InputSelect class="form-select" @bind-Value="Model.InvoiceId">
+                                <InputSelect class="form-select" @bind-Value="Model.InvoiceId"
+                                             @bind-Value:after="OnInvoiceChangedAsync">
                                     <option value="">Select invoice</option>
                                     @foreach (var invoice in FilteredInvoices)
                                     {
@@ -75,6 +80,32 @@
                                     }
                                 </InputSelect>
                             </div>
+
+                            @if (SelectedCustomer is not null)
+                            {
+                                <div class="col-12">
+                                    <div class="alert alert-info py-2 mb-3">
+                                        <div class="row g-2">
+                                            <div class="col-md-4">
+                                                <div class="fw-semibold">Customer balance</div>
+                                                <div>@SelectedCustomer.OutstandingAmount.ToString("C")</div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="fw-semibold">Remaining after receipt</div>
+                                                <div>@AmountRemaining.ToString("C")</div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                @if (SelectedInvoice is not null)
+                                                {
+                                                    <div class="fw-semibold">Invoice amount</div>
+                                                    <div>@SelectedInvoice.NetTotal.ToString("C")</div>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
                             <div class="col-md-4">
                                 <label class="form-label fw-semibold">Receipt date</label>
                                 <InputDate class="form-control" @bind-Value="DateLocal" Type="InputDateType.DateTimeLocal" />
@@ -86,6 +117,14 @@
                             <div class="col-md-4">
                                 <label class="form-label fw-semibold">Amount</label>
                                 <InputNumber class="form-control" @bind-Value="Model.Amount" step="0.01" />
+                                @if (SelectedInvoice is not null && Model.Amount > SelectedInvoice.NetTotal)
+                                {
+                                    <div class="form-text text-danger">Amount cannot exceed the selected invoice amount.</div>
+                                }
+                                else if (SelectedCustomer is not null && Model.Amount > SelectedCustomer.OutstandingAmount)
+                                {
+                                    <div class="form-text text-danger">Amount cannot exceed the customer balance.</div>
+                                }
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold">Payment method</label>
@@ -111,11 +150,12 @@
                 <div class="d-flex justify-content-end gap-2 mt-3">
                     <button type="button" class="btn btn-outline-secondary"
                             @onclick='() => Navigation.NavigateTo("/receipts")'>Cancel</button>
-                    <button type="submit" class="btn btn-primary" disabled="@IsSaving">@(IsSaving ? "Saving..." : "Save receipt")</button>
-                </div>
-            </EditForm>
-        }
-    </div>
+                    <button type="submit" class="btn btn-primary" disabled="@(!CanPersistReceipt || IsSaving)">@(IsSaving ?
+                                        "Saving..." : "Save receipt")</button>
+                    </div>
+                </EditForm>
+            }
+        </div>
 
 @code {
     [Parameter] public Guid? ReceiptId { get; set; }
@@ -196,7 +236,17 @@ default)).Customers.ToList();
         IsLoading = false;
     }
 
-    private Task OnCustomerChangedAsync()
+    private CustomerDto? SelectedCustomer => Customers.FirstOrDefault(c => c.Id == Model.CustomerId);
+    private InvoiceSummaryDto? SelectedInvoice => Model.InvoiceId.HasValue ? Invoices.FirstOrDefault(i => i.Id ==
+Model.InvoiceId.Value) : null;
+    private decimal CustomerBalance => SelectedCustomer?.OutstandingAmount ?? 0m;
+    private decimal AmountRemaining => Math.Max(0m, CustomerBalance - Model.Amount);
+    private decimal MaxReceiptAmount => SelectedInvoice?.NetTotal ?? CustomerBalance;
+    private bool IsAmountValid => Model.Amount > 0m && Model.Amount <= MaxReceiptAmount && Model.Amount <= CustomerBalance;
+    private bool HasOutstandingBalance => CustomerBalance > 0m;
+    private bool CanPersistReceipt => CanSave && (IsEdit || HasOutstandingBalance) && IsAmountValid;
+
+    private async Task OnCustomerChangedAsync()
     {
         FilteredInvoices = Invoices
             .Where(x => !Model.CustomerId.Equals(Guid.Empty) && x.CustomerId == Model.CustomerId)
@@ -205,6 +255,27 @@ default)).Customers.ToList();
         if (Model.InvoiceId.HasValue && FilteredInvoices.All(x => x.Id != Model.InvoiceId.Value))
         {
             Model.InvoiceId = null;
+        }
+
+        if (!Model.InvoiceId.HasValue)
+        {
+            Model.Amount = 0;
+        }
+
+        await Task.CompletedTask;
+    }
+
+    private Task OnInvoiceChangedAsync()
+    {
+        if (Model.InvoiceId.HasValue)
+        {
+            var invoice = SelectedInvoice;
+            if (invoice != null)
+            {
+                Model.Amount = SelectedCustomer?.OutstandingAmount > 0m
+                    ? Math.Min(invoice.NetTotal, SelectedCustomer.OutstandingAmount)
+                    : invoice.NetTotal;
+            }
         }
 
         return Task.CompletedTask;
@@ -220,6 +291,12 @@ default)).Customers.ToList();
 
         try
         {
+            if (!CanPersistReceipt)
+            {
+                Errors.Add("Selected customer has no outstanding balance; cannot create a new receipt.");
+                return;
+            }
+
             if (IsEdit)
             {
                 await ReceiptService.UpdateReceiptAsync(new UpdateReceiptDto

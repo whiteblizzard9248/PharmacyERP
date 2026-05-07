@@ -165,6 +165,7 @@ public class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options, RowV
             // Financials
             entity.Property(e => e.Rate).HasPrecision(12, 2);
             entity.Property(e => e.GstPercentage).HasPrecision(5, 2);
+            entity.Property(e => e.InventoryMovementApplied).HasDefaultValue(false);
 
             entity.HasQueryFilter(e => !e.IsDeleted);
         });

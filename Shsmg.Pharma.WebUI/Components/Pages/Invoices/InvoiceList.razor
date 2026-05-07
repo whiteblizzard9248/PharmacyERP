@@ -19,6 +19,12 @@
             <p class="text-muted mb-0">Manage your billing history and open invoices for the medical store.</p>
         </div>
         <div class="d-flex gap-2">
+            @if (CanEditInvoice)
+            {
+                <button class="btn btn-outline-primary" @onclick="SyncInventoryAsync" disabled="@IsSyncing">
+                    @(IsSyncing ? "Syncing..." : "Sync Inventory")
+                </button>
+            }
             @if (SelectedInvoices.Count > 0)
             {
                 <button class="btn btn-success" @onclick="DownloadCombinedPdf"
@@ -44,6 +50,11 @@
         }
         else
         {
+            @if (!string.IsNullOrWhiteSpace(SyncMessage))
+            {
+                <div class="alert alert-success">@SyncMessage</div>
+            }
+
             <div class="table-responsive">
                 <table class="table table-hover align-middle">
                     <thead class="table-light">
@@ -92,8 +103,10 @@
     private IEnumerable<InvoiceSummaryDto>? InvoiceSummaries;
     private HashSet<Guid> SelectedInvoices = new();
     private bool IsLoading = true;
+    private bool IsSyncing;
     private bool CanCreateInvoice;
     private bool CanEditInvoice;
+    private string SyncMessage = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -175,5 +188,24 @@
         var base64 = Convert.ToBase64String(pdfBytes);
         await JSRuntime.InvokeVoidAsync("downloadFileFromBase64", fileName, base64);
         SelectedInvoices.Clear();
+    }
+
+    private async Task SyncInventoryAsync()
+    {
+        if (IsSyncing || !CanEditInvoice)
+            return;
+
+        IsSyncing = true;
+        try
+        {
+            var syncedCount = await InvoiceService.SyncInventoryAsync();
+            SyncMessage = syncedCount == 0
+                ? "No pending invoice items needed inventory sync."
+                : $"Synced inventory for {syncedCount} invoice item(s).";
+        }
+        finally
+        {
+            IsSyncing = false;
+        }
     }
 }

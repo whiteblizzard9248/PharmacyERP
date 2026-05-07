@@ -9,4 +9,5 @@ public interface IInvoiceService
     Task<IReadOnlyList<InvoiceAuditLogDto>> GetInvoiceAuditLogsAsync(Guid invoiceId);
     Task<Guid> CreateInvoiceAsync(CreateInvoiceDto dto);
     Task<Guid> UpdateInvoiceAsync(UpdateInvoiceDto dto);
+    Task<int> SyncInventoryAsync();
 }

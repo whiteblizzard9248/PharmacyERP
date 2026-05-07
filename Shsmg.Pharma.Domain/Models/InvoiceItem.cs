@@ -14,6 +14,7 @@ public class InvoiceItem : BaseEntity
     public int Quantity { get; set; }
     public decimal Rate { get; set; }
     public decimal GstPercentage { get; set; } // e.g., 12 or 18
+    public bool InventoryMovementApplied { get; set; }
 
     public decimal Total => Quantity * Rate;
 }
