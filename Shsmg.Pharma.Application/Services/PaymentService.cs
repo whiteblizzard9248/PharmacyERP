@@ -184,4 +184,22 @@ public sealed class PaymentService(
 
     private static string GeneratePaymentNumber(DateTime date)
         => $"PAY-{date:yyyyMMdd}-{Guid.NewGuid():N}"[..18];
+
+    public async Task<List<PaymentSummaryDto>> GetPaymentsByPurchaseInvoiceId(Guid purchaseInvoiceId)
+    {
+        return await _context.Payments
+        .AsNoTracking()
+        .Include(x => x.PurchaseInvoice)
+        .Where(y => purchaseInvoiceId == y.PurchaseInvoiceId && !y.IsDeleted)
+        .Select(x => new PaymentSummaryDto
+        {
+            Id = x.Id,
+            PaymentNumber = x.PaymentNumber,
+            Date = x.PaymentDate,
+            SupplierName = x.Supplier != null ? x.Supplier.Name : string.Empty,
+            PurchaseInvoiceNumber = x.PurchaseInvoice != null ? x.PurchaseInvoice.PurchaseInvoiceNumber : string.Empty,
+            Amount = x.Amount,
+            PaymentMethod = x.PaymentMethod
+        }).ToListAsync();
+    }
 }

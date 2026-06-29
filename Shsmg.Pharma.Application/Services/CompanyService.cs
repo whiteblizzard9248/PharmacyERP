@@ -49,7 +49,7 @@ public sealed class CompanyService(IPharmacyDbContext context,
             : await _context.Companies.FirstOrDefaultAsync(c => !c.IsDeleted);
         var currentValidationResult = _licenseService.Validate(dto.LicenseKey!, dto.HardwareId!);
         var currentValidationResultStr = JsonSerializer.Serialize(currentValidationResult, JsonDefaults.StandardOptions);
-        _logger.LogInformation($"License info {currentValidationResultStr}");
+        _logger.LogInformation($"""License info {currentValidationResultStr}""");
 
         if (existingCompany != null)
         {

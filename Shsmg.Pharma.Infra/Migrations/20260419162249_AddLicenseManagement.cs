@@ -34,8 +34,8 @@ namespace Shsmg.Pharma.Infra.Migrations
             migrationBuilder.AddColumn<string>(
                 name: "LicenseKey",
                 table: "Companies",
-                type: "character varying(500)",
-                maxLength: 500,
+                type: "character varying(900)",
+                maxLength: 900,
                 nullable: true);
 
             migrationBuilder.CreateIndex(

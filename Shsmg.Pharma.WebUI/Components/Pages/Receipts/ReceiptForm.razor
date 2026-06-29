@@ -116,14 +116,15 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label fw-semibold">Amount</label>
-                                <InputNumber class="form-control" @bind-Value="Model.Amount" step="0.01" />
+                                <InputNumber class="form-control" @bind-Value="Model.Amount" step="0.01" disabled="@IsEdit" />
                                 @if (SelectedInvoice is not null && Model.Amount > SelectedInvoice.NetTotal)
                                 {
                                     <div class="form-text text-danger">Amount cannot exceed the selected invoice amount.</div>
                                 }
                                 else if (SelectedCustomer is not null && Model.Amount > SelectedCustomer.OutstandingAmount)
                                 {
-                                    <div class="form-text text-danger">Amount cannot exceed the customer balance.</div>
+                                    <div class="form-text text-danger">@(IsEdit ? "" : "Amount cannot exceed the customer balance.")
+                                    </div>
                                 }
                             </div>
                             <div class="col-md-6">
@@ -151,7 +152,7 @@
                     <button type="button" class="btn btn-outline-secondary"
                             @onclick='() => Navigation.NavigateTo("/receipts")'>Cancel</button>
                     <button type="submit" class="btn btn-primary" disabled="@(!CanPersistReceipt || IsSaving)">@(IsSaving ?
-                                        "Saving..." : "Save receipt")</button>
+                                                                                                                                                                                                                                        "Saving..." : "Save receipt")</button>
                     </div>
                 </EditForm>
             }

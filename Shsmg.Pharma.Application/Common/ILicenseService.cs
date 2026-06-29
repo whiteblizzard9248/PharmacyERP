@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json.Serialization;
 
 namespace Shsmg.Pharma.Application.Common;
 
@@ -15,12 +16,51 @@ public class LicenseValidationResult
         => new() { IsValid = false, Message = message };
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum DeploymentType
+{
+    Onprem,
+    Cloud
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum SubscriptionType
+{
+    Trial,
+    Silver,
+    Gold,
+    Platinum
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum Features
+{
+    Accounting,
+    UploadGDrive,
+    UploadAws,
+    UploadOther,
+    Erp,
+    Pharma,
+}
+
 public class LicensePayload
 {
+    [JsonPropertyName("Company")]
     public string Company { get; set; } = string.Empty;
+    [JsonPropertyName("LicenseId")]
     public string LicenseId { get; set; } = string.Empty;
+    [JsonPropertyName("HardwareId")]
     public string HardwareId { get; set; } = string.Empty;
+    [JsonPropertyName("Expiry")]
     public DateTime Expiry { get; set; }
+    [JsonPropertyName("KeyId")]
+    public string KeyId { get; set; } = string.Empty;
+    [JsonPropertyName("DeploymentType")]
+    public DeploymentType DeploymentType { get; set; }
+    [JsonPropertyName("SubscriptionType")]
+    public SubscriptionType SubscriptionType { get; set; }
+    [JsonPropertyName("Features")]
+    public Features[] Features { get; set; } = [];
 }
 
 public class LicenseEnvelope
@@ -32,4 +72,5 @@ public class LicenseEnvelope
 public interface ILicenseService
 {
     LicenseValidationResult Validate(string licenseKey, string currentHardwareId);
+    LicenseValidationResult ValidateCloud(string licenseKey);
 }

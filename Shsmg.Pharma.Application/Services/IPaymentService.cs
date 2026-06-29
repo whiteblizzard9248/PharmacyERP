@@ -9,4 +9,6 @@ public interface IPaymentService
     Task<Guid> CreatePaymentAsync(CreatePaymentDto dto);
     Task<Guid> UpdatePaymentAsync(UpdatePaymentDto dto);
     Task DeletePaymentAsync(Guid id);
+
+    Task<List<PaymentSummaryDto>> GetPaymentsByPurchaseInvoiceId(Guid purchaseInvoiceId);
 }

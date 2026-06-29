@@ -1,7 +1,8 @@
-using Shsmg.Pharma.Application.Common;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using NSec.Cryptography;
+using Shsmg.Pharma.Application.Common;
 
 namespace Shsmg.Pharma.Infra.Services;
 
@@ -11,7 +12,6 @@ public sealed class LicenseService : ILicenseService
 
     private readonly PublicKey _publicKey;
 
-    // 🔐 Paste your PEM public key here
     private const string PublicKeyPem = @"
 -----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAPcHRBDO6QQSvi+PAtBMRU1txq0YzOLiJt5RNvJ4oc2o=
@@ -21,130 +21,247 @@ MCowBQYDK2VwAyEAPcHRBDO6QQSvi+PAtBMRU1txq0YzOLiJt5RNvJ4oc2o=
     public LicenseService()
     {
         var keyBytes = LoadSpkiFromPem(PublicKeyPem);
-        _publicKey = PublicKey.Import(Algo, keyBytes, KeyBlobFormat.PkixPublicKey);
+
+        _publicKey = PublicKey.Import(
+            Algo,
+            keyBytes,
+            KeyBlobFormat.PkixPublicKey);
     }
 
-    public LicenseValidationResult Validate(string? licenseKey, string currentHardwareId)
+    public LicenseValidationResult Validate(
+        string? licenseKey,
+        string currentHardwareId)
     {
         if (string.IsNullOrWhiteSpace(licenseKey))
             return LicenseValidationResult.Invalid("License key missing");
 
         if (string.IsNullOrWhiteSpace(currentHardwareId))
-            return LicenseValidationResult.Invalid("Invalid license payload");
+            return LicenseValidationResult.Invalid("Invalid hardware id");
 
-        licenseKey = licenseKey.Trim().Replace("\"", "");
-
-        if (!TrySplit(licenseKey, out var payloadBytes, out var signatureBytes))
-        { return LicenseValidationResult.Invalid("Invalid license format"); }
-
-        // 🔐 Verify signature (Ed25519)
-        if (!Algo.Verify(_publicKey, payloadBytes, signatureBytes))
-        { return LicenseValidationResult.Invalid("Invalid license signature"); }
-
-        LicensePayload payload;
-
-        try
+        if (!TryValidatePayload(
+                licenseKey,
+                out var payload,
+                out var error))
         {
-            var json = Encoding.UTF8.GetString(payloadBytes);
-            payload = JsonSerializer.Deserialize<LicensePayload>(json)!;
-            payload.Expiry = NormalizeIncoming(payload.Expiry);
-        }
-        catch
-        {
-            return LicenseValidationResult.Invalid("Invalid license payload");
+            return LicenseValidationResult.Invalid(error);
         }
 
-        // Normalize hardware IDs
         var currentHw = Normalize(currentHardwareId);
         var licenseHw = Normalize(payload.HardwareId);
 
-        if (!string.Equals(currentHw, licenseHw, StringComparison.Ordinal))
-            return LicenseValidationResult.Invalid("Hardware mismatch");
+        if (payload.DeploymentType == DeploymentType.Onprem &&
+            currentHw != licenseHw)
+        {
+            return LicenseValidationResult.Invalid(
+                "License not valid for this machine");
+        }
 
-        // Expiry check (with small tolerance)
+        return ValidateExpiry(payload);
+    }
+
+    public LicenseValidationResult ValidateCloud(
+        string licenseKey)
+    {
+        if (string.IsNullOrWhiteSpace(licenseKey))
+            return LicenseValidationResult.Invalid("License key missing");
+
+        if (!TryValidatePayload(
+                licenseKey,
+                out var payload,
+                out var error))
+        {
+            return LicenseValidationResult.Invalid(error);
+        }
+
+        return ValidateExpiry(payload);
+    }
+
+    private bool TryValidatePayload(
+        string licenseKey,
+        out LicensePayload payload,
+        out string errorMessage)
+    {
+        payload = new LicensePayload();
+        errorMessage = string.Empty;
+
+        try
+        {
+            licenseKey = licenseKey
+                .Trim()
+                .Replace("\"", "");
+
+            var parts = licenseKey.Split('.');
+
+            if (parts.Length != 3)
+            {
+                errorMessage = "Invalid license format";
+                return false;
+            }
+
+            //
+            // Same as Go ValidateToken()
+            // signingInput := headerPart + "." + payloadPart
+            //
+            var headerPart = parts[0];
+            var payloadPart = parts[1];
+            var signaturePart = parts[2];
+
+            //
+            // Optional: decode header and inspect kid/alg
+            //
+            var headerBytes =
+                Base64UrlDecode(headerPart);
+
+            var header =
+                JsonSerializer.Deserialize<TokenHeader>(
+                    headerBytes);
+
+            if (header == null)
+            {
+                errorMessage = "Invalid token header";
+                return false;
+            }
+
+            //
+            // Verify signature against EXACT same bytes
+            // signed in Go:
+            //
+            // signingInput :=
+            //      base64url(header) + "." +
+            //      base64url(payload)
+            //
+            var signingInput =
+                $"{headerPart}.{payloadPart}";
+
+            var signatureBytes =
+                Base64UrlDecode(signaturePart);
+
+            var valid = Algo.Verify(
+                _publicKey,
+                Encoding.UTF8.GetBytes(signingInput),
+                signatureBytes);
+
+            if (!valid)
+            {
+                errorMessage = "Invalid license signature";
+                return false;
+            }
+
+            //
+            // Only decode payload after verification
+            //
+            var payloadBytes =
+                Base64UrlDecode(payloadPart);
+
+            var json =
+                Encoding.UTF8.GetString(payloadBytes);
+
+            payload =
+                JsonSerializer.Deserialize<LicensePayload>(
+                    json)!;
+
+            if (payload == null)
+            {
+                errorMessage = "Invalid license payload";
+                return false;
+            }
+
+            payload.Expiry =
+                NormalizeIncoming(payload.Expiry);
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"License validation failed: {ex.Message}";
+            return false;
+        }
+    }
+
+    private static LicenseValidationResult ValidateExpiry(
+        LicensePayload payload)
+    {
         var now = DateTime.UtcNow;
 
-        // Expired (with small tolerance)
         if (payload.Expiry < now.AddMinutes(-5))
-            return LicenseValidationResult.Invalid("License expired");
+        {
+            return LicenseValidationResult.Invalid(
+                "License expired");
+        }
 
-        // Expiring soon (e.g., within next 3 days)
         if (payload.Expiry <= now.AddDays(3))
-            return LicenseValidationResult.Invalid("License is expiring soon");
+        {
+            return LicenseValidationResult.Invalid(
+                "License is expiring soon");
+        }
 
         return LicenseValidationResult.Valid(payload);
     }
 
-    // -------- helpers --------
-
-    private static DateTime NormalizeIncoming(DateTime dt)
+    private static DateTime NormalizeIncoming(
+        DateTime dt)
     {
         if (dt.Kind == DateTimeKind.Utc)
             return dt;
 
         if (dt.Kind == DateTimeKind.Unspecified)
-            dt = DateTime.SpecifyKind(dt, DateTimeKind.Local);
+        {
+            dt = DateTime.SpecifyKind(
+                dt,
+                DateTimeKind.Local);
+        }
 
         return dt.ToUniversalTime();
     }
 
-    private static string Normalize(string s)
-        => (s ?? string.Empty).Trim().ToUpperInvariant();
+    private static string Normalize(string value)
+    {
+        return (value ?? string.Empty)
+            .Trim()
+            .ToUpperInvariant();
+    }
 
-    /// <summary>
-    /// Extracts SubjectPublicKeyInfo (SPKI) DER bytes from a PEM public key.
-    /// Works with:
-    /// -----BEGIN PUBLIC KEY----- (recommended)
-    /// </summary>
-    private static byte[] LoadSpkiFromPem(string pem)
+    private static byte[] LoadSpkiFromPem(
+        string pem)
     {
         var lines = pem
             .Split('\n')
-            .Select(l => l.Trim())
-            .Where(l => !l.StartsWith("-----") && !string.IsNullOrWhiteSpace(l));
+            .Select(x => x.Trim())
+            .Where(x =>
+                !x.StartsWith("-----") &&
+                !string.IsNullOrWhiteSpace(x));
 
         var base64 = string.Concat(lines);
 
         return Convert.FromBase64String(base64);
     }
 
-    private static bool TrySplit(string licenseKey, out byte[] payload, out byte[] signature)
+    private static byte[] Base64UrlDecode(
+        string input)
     {
-        payload = Array.Empty<byte>();
-        signature = Array.Empty<byte>();
+        var base64 = input
+            .Replace('-', '+')
+            .Replace('_', '/');
 
-        if (string.IsNullOrEmpty(licenseKey))
+        switch (base64.Length % 4)
         {
-            Console.WriteLine("DEBUG: licenseKey is null or empty");
-            return false;
-        }
-
-        var parts = licenseKey.Split('.');
-        if (parts.Length != 2)
-        {
-            // This is likely your issue if you see "Invalid license format"
-            Console.WriteLine($"DEBUG: Split failed. Found {parts.Length} parts. String: {licenseKey}");
-            return false;
+            case 2:
+                base64 += "==";
+                break;
+            case 3:
+                base64 += "=";
+                break;
         }
 
-        try
-        {
-            payload = Base64UrlDecode(parts[0]);
-            signature = Base64UrlDecode(parts[1]);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            // This will tell you if the Base64 conversion is the culprit
-            Console.WriteLine($"DEBUG: Decode failed: {ex.Message}");
-            return false;
-        }
-    }
-    private static byte[] Base64UrlDecode(string input)
-    {
-        string base64 = input.Replace('-', '+').Replace('_', '/');
-        int mod = base64.Length % 4;
-        if (mod > 0) base64 += new string('=', 4 - mod);
         return Convert.FromBase64String(base64);
+    }
+
+    private sealed class TokenHeader
+    {
+        [JsonPropertyName("alg")]
+        public string Alg { get; set; } = string.Empty;
+        [JsonPropertyName("kid")]
+        public string Kid { get; set; } = string.Empty;
     }
 }

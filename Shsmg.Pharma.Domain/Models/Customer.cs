@@ -1,7 +1,7 @@
 namespace Shsmg.Pharma.Domain.Models;
 
 /// <summary>
-/// Customer aggregate root for pharmacy ERP system.
+/// Customer aggregate root for eezy ERP system.
 /// Manages customer relationships, billing, and regulatory compliance.
 /// 
 /// Supports three customer types:

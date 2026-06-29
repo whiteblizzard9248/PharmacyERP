@@ -66,7 +66,8 @@
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Purchase invoice <span
                                 class="text-muted fw-normal">(optional)</span></label>
-                                <InputSelect class="form-select" @bind-Value="Model.PurchaseInvoiceId">
+                                <InputSelect class="form-select" @bind-Value="Model.PurchaseInvoiceId"
+                                             @bind-Value:after="OnPurchaseInvoiceIdChangedAsync">
                                     <option value="">Select purchase invoice</option>
                                     @foreach (var invoice in FilteredPurchaseInvoices)
                                     {
@@ -78,13 +79,22 @@
                                 <label class="form-label fw-semibold">Payment date</label>
                                 <InputDate class="form-control" @bind-Value="DateLocal" Type="InputDateType.DateTimeLocal" />
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold">Payment number</label>
-                                <InputText class="form-control" @bind-Value="Model.PaymentNumber" />
-                            </div>
+
+                            
+                            @if (IsEdit)
+                            {
+                                <div class="col-md-4">
+                                    <label class="form-label fw-semibold">Payment number</label>
+                                    <InputText class="form-control" @bind-Value="Model.PaymentNumber" disabled="@IsEdit" />
+                                </div>
+                            }
+                            else
+                            {
+                                <InputHidden class="form-control" @bind-Value="Model.PaymentNumber" />
+                            }
                             <div class="col-md-4">
                                 <label class="form-label fw-semibold">Amount</label>
-                                <InputNumber class="form-control" @bind-Value="Model.Amount" step="0.01" />
+                                <InputNumber class="form-control" @bind-Value="Model.Amount" step="0.01" disabled="@IsEdit" />
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold">Payment method</label>
@@ -107,6 +117,39 @@
                     </div>
                 </div>
 
+                @if (OtherPayments == null || !OtherPayments.Any())
+                {
+                    <div class="alert alert-secondary text-center">
+                        No Payments
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover table-striped align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Payment No.</th>
+                                    <th>Date</th>
+                                    <th>Payment Method</th>
+                                    <th class="text-end">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var payment in OtherPayments)
+                                {
+                                    <tr>
+                                        <td>@payment.PaymentNumber</td>
+                                        <td>@payment.Date.ToString("dd-MM-yyyy")</td>
+                                        <td>@payment.PaymentMethod</td>
+                                        <td class="text-end">@payment.Amount.ToString("N2")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
                 <div class="d-flex justify-content-end gap-2 mt-3">
                     <button type="button" class="btn btn-outline-secondary"
                             @onclick='() => Navigation.NavigateTo("/payments")'>Cancel</button>
@@ -127,6 +170,7 @@
     private List<SupplierDto> Suppliers = [];
     private List<PurchaseInvoiceSummaryDto> PurchaseInvoices = [];
     private List<PurchaseInvoiceSummaryDto> FilteredPurchaseInvoices = [];
+    private List<PaymentSummaryDto> OtherPayments = [];
     private List<string> Errors = [];
     private static readonly string[] PaymentMethods = ["Cash", "Card", "UPI", "Bank Transfer", "Cheque"];
 
@@ -205,6 +249,24 @@
 
         return Task.CompletedTask;
     }
+
+    private async Task OnPurchaseInvoiceIdChangedAsync()
+    {
+        if (Model.PurchaseInvoiceId.HasValue)
+        {
+            var invoice = SelectedPurchaseInvoice;
+            if (invoice != null)
+            {
+                OtherPayments = (await PaymentService.GetPaymentsByPurchaseInvoiceId(invoice.Id));
+                Model.Amount = invoice.NetTotal - OtherPayments.Sum(x => x.Amount);
+            }
+        }
+    }
+
+    private SupplierDto? SelectedSupplier => Suppliers.FirstOrDefault(s => s.Id == Model.SupplierId);
+
+    private PurchaseInvoiceSummaryDto? SelectedPurchaseInvoice => Model.PurchaseInvoiceId.HasValue ?
+PurchaseInvoices.FirstOrDefault(i => i.Id == Model.PurchaseInvoiceId.Value) : null;
 
     private async Task SaveAsync()
     {
