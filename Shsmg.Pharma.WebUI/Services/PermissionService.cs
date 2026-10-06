@@ -5,15 +5,12 @@ namespace Shsmg.Pharma.WebUI.Services;
 
 public class PermissionService(IAuthorizationService authorizationService, IHttpContextAccessor httpContextAccessor)
 {
-    private readonly IAuthorizationService _authorizationService = authorizationService;
-    private readonly IHttpContextAccessor _httpContextAccessor = httpContextAccessor;
-
     public async Task<bool> HasPermissionAsync(string permission)
     {
-        var user = _httpContextAccessor.HttpContext?.User;
+        var user = httpContextAccessor.HttpContext?.User;
         if (user is null) return false;
 
-        var result = await _authorizationService.AuthorizeAsync(user, null, permission);
+        var result = await authorizationService.AuthorizeAsync(user, null, permission);
         return result.Succeeded;
     }
 
@@ -26,9 +23,9 @@ public class PermissionService(IAuthorizationService authorizationService, IHttp
         return false;
     }
 
-    public Task<bool> IsInRoleAsync(string role)
+    private Task<bool> IsInRoleAsync(string role)
     {
-        var user = _httpContextAccessor.HttpContext?.User;
+        var user = httpContextAccessor.HttpContext?.User;
         return Task.FromResult(user?.IsInRole(role) == true);
     }
 

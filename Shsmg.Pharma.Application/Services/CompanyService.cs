@@ -11,15 +11,10 @@ public sealed class CompanyService(IPharmacyDbContext context,
  ILogger<CompanyService> logger,
   ILicenseService licenseService) : ICompanyService
 {
-    private readonly IPharmacyDbContext _context = context;
-    private readonly ILogger<CompanyService> _logger = logger;
-    private readonly ILicenseService _licenseService = licenseService;
-
-
     public async Task<CompanyDto?> GetCompanyAsync()
     {
-        _logger.LogInformation("Attempting to retrieve company information.");
-        var company = await _context.Companies
+        logger.LogInformation("Attempting to retrieve company information.");
+        var company = await context.Companies
             .AsNoTracking()
             .FirstOrDefaultAsync(c => !c.IsDeleted);
 
@@ -43,13 +38,14 @@ public sealed class CompanyService(IPharmacyDbContext context,
 
     public async Task<Guid> CreateOrUpdateCompanyAsync(CompanyDto dto)
     {
-        _logger.LogInformation("Attempting to create or update company information.");
+        logger.LogInformation("Attempting to create or update company information.");
         var existingCompany = dto.Id != Guid.Empty
-            ? await _context.Companies.FirstOrDefaultAsync(c => c.Id == dto.Id && !c.IsDeleted)
-            : await _context.Companies.FirstOrDefaultAsync(c => !c.IsDeleted);
-        var currentValidationResult = _licenseService.Validate(dto.LicenseKey!, dto.HardwareId!);
+            ? await context.Companies.FirstOrDefaultAsync(c => c.Id == dto.Id && !c.IsDeleted)
+            : await context.Companies.FirstOrDefaultAsync(c => !c.IsDeleted);
+        
+        var currentValidationResult = licenseService.Validate(dto.LicenseKey!, dto.HardwareId!);
         var currentValidationResultStr = JsonSerializer.Serialize(currentValidationResult, JsonDefaults.StandardOptions);
-        _logger.LogInformation($"""License info {currentValidationResultStr}""");
+        logger.LogInformation($"""License info {currentValidationResultStr}""");
 
         if (existingCompany != null)
         {
@@ -63,8 +59,8 @@ public sealed class CompanyService(IPharmacyDbContext context,
             existingCompany.IsActivated = dto.IsActivated;
             existingCompany.LastModified = DateTime.UtcNow;
 
-            await _context.SaveChangesAsync();
-            _logger.LogInformation("Company information updated successfully.");
+            await context.SaveChangesAsync();
+            logger.LogInformation("Company information updated successfully.");
             return existingCompany.Id;
         }
 
@@ -79,10 +75,10 @@ public sealed class CompanyService(IPharmacyDbContext context,
             HardwareId = currentValidationResult.LicensePayload.HardwareId,
         };
 
-        _context.Companies.Add(newCompany);
-        _logger.LogInformation("Creating new company information.");
-        await _context.SaveChangesAsync();
-        _context.ChangeTracker.Clear();
+        context.Companies.Add(newCompany);
+        logger.LogInformation("Creating new company information.");
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
         return newCompany.Id;
     }
 }

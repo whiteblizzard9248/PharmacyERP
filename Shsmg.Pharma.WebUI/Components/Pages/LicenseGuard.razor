@@ -3,7 +3,7 @@
 @inject LicenseStatus Status
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthenticationStateProvider
-@inject Shsmg.Pharma.WebUI.Services.PermissionService PermissionService
+@inject Services.PermissionService PermissionService
 
 @if (ShouldShowOverlay)
 {
@@ -12,7 +12,7 @@
             <h2 class="text-danger">Access Restricted</h2>
             <p>@OverlayMessage</p>
             <hr />
-            <small>Hardware ID: @Shsmg.Pharma.Infra.Security.LicenseHelper.GetHardwareId()</small>
+            <small>Hardware ID: @Infra.Security.LicenseHelper.GetHardwareId()</small>
             <div class="mt-4">
                 @if (!IsAuthenticated)
                 {

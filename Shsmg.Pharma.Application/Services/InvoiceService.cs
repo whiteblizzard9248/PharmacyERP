@@ -112,13 +112,15 @@ public sealed class InvoiceService(
             customer = await _customerService.GetCustomerByIdAsync(dto.CustomerId.Value);
             if (customer == null)
             {
-                throw new ValidationException(new[] { new ValidationFailure("CustomerId", $"Customer with ID {dto.CustomerId.Value} not found.") });
+                throw new ValidationException([new ValidationFailure("CustomerId", $"Customer with ID {dto.CustomerId.Value} not found.")
+                ]);
             }
 
             // Check if customer can make purchases
             if (customer.IsBlacklisted)
             {
-                throw new ValidationException(new[] { new ValidationFailure("CustomerId", $"Customer {customer.Name} is blacklisted. Reason: {customer.BlacklistReason}") });
+                throw new ValidationException([new ValidationFailure("CustomerId", $"Customer {customer.Name} is blacklisted. Reason: {customer.BlacklistReason}")
+                ]);
             }
         }
 

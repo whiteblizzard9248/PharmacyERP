@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Shsmg.Pharma.Application.Common;
 using Shsmg.Pharma.Application.DTOs;
 
@@ -14,17 +15,27 @@ public sealed class UserService(UserManager<AppUser> userManager, IHttpContextAc
     public async Task<IEnumerable<UserDto>> GetUsersAsync()
     {
         var currentUserId = GetCurrentUserId();
-        var users = _userManager.Users
-            .Where(user => user.LockoutEnd == null || user.LockoutEnd <= DateTimeOffset.UtcNow)
-            .ToList();
+
+        var now = DateTimeOffset.UtcNow;
+
+        var users = await _userManager.Users
+            .Where(user =>
+                user.LockoutEnd == null ||
+                user.LockoutEnd <= now)
+            .ToListAsync();
+
         var userDtos = new List<UserDto>();
 
         foreach (var user in users)
         {
             var roles = await _userManager.GetRolesAsync(user);
+
             if (IsCurrentUserAdmin() ||
-                (IsCurrentUserManager() && (roles.Contains(Roles.Employee) || user.Id == currentUserId)) ||
-                (!IsCurrentUserAdmin() && !IsCurrentUserManager() && user.Id == currentUserId))
+                (IsCurrentUserManager() &&
+                 (roles.Contains(Roles.Employee) || user.Id == currentUserId)) ||
+                (!IsCurrentUserAdmin() &&
+                 !IsCurrentUserManager() &&
+                 user.Id == currentUserId))
             {
                 userDtos.Add(new UserDto
                 {

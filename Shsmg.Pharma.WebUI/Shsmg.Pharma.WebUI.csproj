@@ -4,7 +4,7 @@
         <ProjectReference Include="../Shsmg.Pharma.Application/Shsmg.Pharma.Application.csproj" />
     </ItemGroup>
     <ItemGroup>
-      <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.6">
+      <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
         <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         <PrivateAssets>all</PrivateAssets>
       </PackageReference>
@@ -15,12 +15,75 @@
       <PackageReference Include="Serilog.Sinks.Async" Version="2.1.0" />
       <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
       <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
-      <PackageReference Include="Serilog.Sinks.PostgreSQL" Version="2.3.0" />
     </ItemGroup>
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+        <AssemblyName>PharmacyERP</AssemblyName>
     </PropertyGroup>
+
+    <!-- Installer configuration -->
+    <PropertyGroup>
+        <CreateInstaller Condition="'$(CreateInstaller)' == ''">false</CreateInstaller>
+        <InnoSetupScript Condition="'$(InnoSetupScript)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../installer/setup.iss'))</InnoSetupScript>
+        <InstallerOutputDir Condition="'$(InstallerOutputDir)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../installer/output'))</InstallerOutputDir>
+    </PropertyGroup>
+
+    <Target Name="BuildInnoSetupInstaller" AfterTargets="Publish">
+        <PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
+            <!-- Detect Inno Setup compiler: explicit path, PATH, or standard 32/64-bit install locations -->
+            <InnoSetupExe Condition="'$(InnoSetupExe)' == '' and Exists('$(ProgramFiles(x86))\Inno Setup 6\iscc.exe')">$(ProgramFiles(x86))\Inno Setup 6\iscc.exe</InnoSetupExe>
+            <InnoSetupExe Condition="'$(InnoSetupExe)' == '' and Exists('$(ProgramFiles)\Inno Setup 6\iscc.exe')">$(ProgramFiles)\Inno Setup 6\iscc.exe</InnoSetupExe>
+            <InnoSetupExe Condition="'$(InnoSetupExe)' == ''">iscc</InnoSetupExe>
+        </PropertyGroup>
+
+        <PropertyGroup>
+            <!-- Run if explicitly requested or auto in Release mode on Windows targeting win-* RIDs -->
+            <ShouldBuildInstaller Condition="('$(CreateInstaller)' == 'true' or ('$(Configuration)' == 'Release' and '$(RuntimeIdentifier)' != '' and $([System.Text.RegularExpressions.Regex]::IsMatch('$(RuntimeIdentifier)', '^win.*')))) and '$(OS)' == 'Windows_NT'">true</ShouldBuildInstaller>
+        </PropertyGroup>
+
+        <!-- Check if iscc is found when targeting installer generation -->
+        <Exec Condition="'$(ShouldBuildInstaller)' == 'true'"
+              Command="where &quot;$(InnoSetupExe)&quot;"
+              IgnoreExitCode="true"
+              StandardOutputImportance="Low"
+              StandardErrorImportance="Low">
+            <Output TaskParameter="ExitCode" PropertyName="IsccFoundExitCode" />
+        </Exec>
+
+        <!-- Error if explicitly requested but not on Windows or compiler not found -->
+        <Error Condition="'$(CreateInstaller)' == 'true' and '$(OS)' != 'Windows_NT'"
+               Text="Inno Setup installer creation is only supported on Windows." />
+
+        <Error Condition="'$(CreateInstaller)' == 'true' and '$(IsccFoundExitCode)' != '0' and !Exists('$(InnoSetupExe)')"
+               Text="Inno Setup Compiler (iscc.exe) was not found in PATH or standard Program Files folders. Please install Inno Setup 6 or add it to PATH." />
+
+        <!-- Informative warning if skipped in automatic mode -->
+        <Warning Condition="'$(ShouldBuildInstaller)' == 'true' and '$(CreateInstaller)' != 'true' and '$(IsccFoundExitCode)' != '0' and !Exists('$(InnoSetupExe)')"
+                 Text="Inno Setup Compiler (iscc.exe) not found; skipping installer creation. Install Inno Setup 6 or set -p:InnoSetupExe=&quot;path\to\iscc.exe&quot;." />
+
+        <!-- Run Inno Setup Compiler when available -->
+        <PropertyGroup Condition="'$(ShouldBuildInstaller)' == 'true' and ('$(IsccFoundExitCode)' == '0' or Exists('$(InnoSetupExe)'))">
+            <InstallerVersion Condition="'$(Version)' != ''">$(Version)</InstallerVersion>
+            <InstallerVersion Condition="'$(InstallerVersion)' == ''">1.0.0</InstallerVersion>
+            <CanRunInnoSetup>true</CanRunInnoSetup>
+            <ResolvedPublishDir>$([System.IO.Path]::GetFullPath('$(PublishDir)'))</ResolvedPublishDir>
+            <ResolvedInstallerOutputDir>$([System.IO.Path]::GetFullPath('$(InstallerOutputDir)'))</ResolvedInstallerOutputDir>
+        </PropertyGroup>
+
+        <MakeDir Condition="'$(CanRunInnoSetup)' == 'true'" Directories="$(ResolvedInstallerOutputDir)" />
+
+        <Message Condition="'$(CanRunInnoSetup)' == 'true'"
+                 Importance="High"
+                 Text="Building Inno Setup installer for $(AssemblyName) $(InstallerVersion)..." />
+
+        <Exec Condition="'$(CanRunInnoSetup)' == 'true'"
+              Command="&quot;$(InnoSetupExe)&quot; &quot;/DMyAppName=$(AssemblyName)&quot; &quot;/DMyAppExeName=$(TargetName).exe&quot; &quot;/DMyAppVersion=$(InstallerVersion)&quot; &quot;/DAppSourceDir=$(ResolvedPublishDir)&quot; &quot;/DOutputDir=$(ResolvedInstallerOutputDir)&quot; &quot;$(InnoSetupScript)&quot;" />
+
+        <Message Condition="'$(CanRunInnoSetup)' == 'true'"
+                 Importance="High"
+                 Text="Installer successfully generated in: $(ResolvedInstallerOutputDir)" />
+    </Target>
 </Project>

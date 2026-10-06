@@ -14,6 +14,8 @@ using System.Security.Claims;
 using Serilog;
 using Serilog.Events;
 using Shsmg.Pharma.Infra.Services;
+using Shsmg.Pharma.WebUI;
+using Shsmg.Pharma.WebUI.Services;
 
 var culture = new CultureInfo("en-IN");
 CultureInfo.DefaultThreadCurrentCulture = culture;
@@ -115,7 +117,7 @@ builder.Services.AddAntiforgery();
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 
-builder.Services.AddScoped<Shsmg.Pharma.WebUI.Services.PermissionService>();
+builder.Services.AddScoped<PermissionService>();
 builder.Services.AddSingleton<LicenseStatus>();
 builder.Services.AddSingleton<ILicenseService, LicenseService>();
 
@@ -139,7 +141,7 @@ try
                 try
                 {
                     await context.Database.MigrateAsync();
-                    Log.Information("Database migration completed.");
+                    Log.Information("Database migration completed");
                     break;
                 }
                 catch (Exception ex)
@@ -153,7 +155,7 @@ try
         // 👉 EXIT EARLY if installer mode
         if (isMigrationMode)
         {
-            Log.Information("Migration mode completed. Exiting application.");
+            Log.Information("Migration mode completed. Exiting application");
             return;
         }
         var status = app.Services.GetRequiredService<LicenseStatus>();
@@ -163,16 +165,13 @@ try
 
         try
         {
-
             var company = await context.Companies.FirstOrDefaultAsync();
-            var currentHardwareId = LicenseHelper.GetHardwareId();
-
-            Log.Information("Verifying license for hardware ID: {HardwareId}", currentHardwareId);
-
             if (company != null)
             {
                 var licenseService = app.Services.GetRequiredService<ILicenseService>();
-                if (company?.LicenseKey == null) throw new Exception("License Key Cannot be null");
+                if (company.LicenseKey == null) throw new Exception("License Key Cannot be null");
+                var currentHardwareId = LicenseHelper.GetHardwareId();
+                Log.Information("Verifying license for hardware ID: {HardwareId}", currentHardwareId);
                 var result = licenseService.Validate(company.LicenseKey, currentHardwareId);
                 status.IsValid = result.IsValid;
                 status.Message = result.Message;
@@ -214,6 +213,15 @@ try
 
     Log.Information("Seeding default user and roles...");
     await SeedDefaultUserAsync(app.Services);
+    var isDev = app.Environment.IsDevelopment();
+    Log.Information("Is Development: {IsDev}", isDev);
+    if (isDev)
+    {
+        using var scope = app.Services.CreateScope();
+        var context = scope.ServiceProvider
+            .GetRequiredService<PharmacyDbContext>();
+        await PharmacyTestDataSeeder.SeedAsync(context);
+    }
     app.Run();
 }
 catch (Exception ex)
@@ -225,44 +233,87 @@ finally
     Log.CloseAndFlush();
 }
 
+return;
+
 static async Task SeedDefaultUserAsync(IServiceProvider serviceProvider)
 {
     using var scope = serviceProvider.CreateScope();
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
-    // Seed roles
-    foreach (var roleName in Roles.RolePermissions.Keys)
+    var userManager =
+        scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+
+    var roleManager =
+        scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+
+    // ---------------------------------------------------------
+    // Roles
+    // ---------------------------------------------------------
+
+    var roleNames = Roles.RolePermissions.Keys.ToList();
+
+    var existingRoleNames = await roleManager.Roles
+        .Where(r => r.Name != null && roleNames.Contains(r.Name))
+        .Select(r => r.Name!)
+        .ToListAsync();
+
+    if (existingRoleNames.Count == roleNames.Count)
     {
-        var role = await roleManager.FindByNameAsync(roleName);
-
-        if (role == null)
+        Log.Information("All roles exist");
+    }
+    else
+    {
+        foreach (var roleName in roleNames)
         {
-            role = new IdentityRole(roleName);
-            await roleManager.CreateAsync(role);
-        }
+            var role = await roleManager.FindByNameAsync(roleName);
 
-        var existingClaims = await roleManager.GetClaimsAsync(role);
-        var existingPermissions = existingClaims
-            .Where(c => c.Type == "Permission")
-            .Select(c => c.Value)
-            .ToHashSet();
+            if (role == null)
+            {
+                role = new IdentityRole(roleName);
 
-        var desiredPermissions = Roles.RolePermissions[roleName].ToHashSet();
+                var result = await roleManager.CreateAsync(role);
 
-        // Add missing permissions
-        foreach (var permission in desiredPermissions.Except(existingPermissions))
-        {
-            await roleManager.AddClaimAsync(role, new Claim("Permission", permission));
-        }
+                if (!result.Succeeded)
+                {
+                    Log.Error(
+                        "Failed to create role {RoleName}: {Errors}",
+                        roleName,
+                        string.Join(", ", result.Errors.Select(e => e.Description)));
 
-        // Optional: remove stale permissions
-        foreach (var claim in existingClaims.Where(c =>
-            c.Type == "Permission" && !desiredPermissions.Contains(c.Value)))
-        {
-            await roleManager.RemoveClaimAsync(role, claim);
+                    continue;
+                }
+            }
+
+            var existingClaims =
+                await roleManager.GetClaimsAsync(role);
+
+            var existingPermissions = existingClaims
+                .Where(c => c.Type == "Permission")
+                .Select(c => c.Value)
+                .ToHashSet();
+
+            var desiredPermissions =
+                Roles.RolePermissions[roleName].ToHashSet();
+
+            foreach (var permission in
+                     desiredPermissions.Except(existingPermissions))
+            {
+                await roleManager.AddClaimAsync(
+                    role,
+                    new Claim("Permission", permission));
+            }
+
+            foreach (var claim in existingClaims.Where(c =>
+                c.Type == "Permission" &&
+                !desiredPermissions.Contains(c.Value)))
+            {
+                await roleManager.RemoveClaimAsync(role, claim);
+            }
         }
     }
+
+    // ---------------------------------------------------------
+    // Default users
+    // ---------------------------------------------------------
 
     const string adminEmail = "admin@pharma.local";
     const string adminPassword = "Admin@1234";
@@ -273,9 +324,42 @@ static async Task SeedDefaultUserAsync(IServiceProvider serviceProvider)
     const string employeeEmail = "employee@pharma.local";
     const string employeePassword = "Employee@1234";
 
-    await CreateDefaultUser(userManager, adminEmail, adminPassword, Roles.Admin);
-    await CreateDefaultUser(userManager, managerEmail, managerPassword, Roles.Manager);
-    await CreateDefaultUser(userManager, employeeEmail, employeePassword, Roles.Employee);
+    var defaultUsers = new[]
+    {
+        (Email: adminEmail, Password: adminPassword, Role: Roles.Admin),
+        (Email: managerEmail, Password: managerPassword, Role: Roles.Manager),
+        (Email: employeeEmail, Password: employeePassword, Role: Roles.Employee)
+    };
+
+    var userEmails = defaultUsers
+        .Select(x => x.Email)
+        .ToList();
+
+    var existingUserEmails = await userManager.Users
+        .Where(u => u.Email != null && userEmails.Contains(u.Email))
+        .Select(u => u.Email!)
+        .ToListAsync();
+
+    if (existingUserEmails.Count == userEmails.Count)
+    {
+        Log.Information(
+            "All default users exist: {UsersCount}",
+            existingUserEmails.Count);
+
+        return;
+    }
+
+    foreach (var user in defaultUsers)
+    {
+        if (existingUserEmails.Contains(user.Email))
+            continue;
+
+        await CreateDefaultUser(
+            userManager,
+            user.Email,
+            user.Password,
+            user.Role);
+    }
 }
 
 static async Task CreateDefaultUser(UserManager<AppUser> userManager, string userName, string password, string role)

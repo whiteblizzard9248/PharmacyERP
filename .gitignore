@@ -489,3 +489,7 @@ $RECYCLE.BIN/
 graphify-out/**
 .graphify_cached.json
 .graphify_python
+
+# Installer outputs and staging
+installer/output/
+installer/app/

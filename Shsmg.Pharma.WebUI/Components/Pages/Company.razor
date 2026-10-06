@@ -1,15 +1,14 @@
 @page "/company"
-@using Microsoft.AspNetCore.Authorization
 @attribute [AllowAnonymous]
-
+@using Shsmg.Pharma.Application.Services
+@using Shsmg.Pharma.Infra.Security
 @inject ICompanyService CompanyService
 @inject NavigationManager Navigation
-@inject Shsmg.Pharma.WebUI.Services.PermissionService PermissionService
+@inject Services.PermissionService PermissionService
 @inject LicenseStatus LicenseStatus
+
 @rendermode InteractiveServer
-@using Shsmg.Pharma.Application.Services
-@using System.Globalization
-@using Shsmg.Pharma.Infra.Security
+
 
 <PageTitle>Store Profile</PageTitle>
 

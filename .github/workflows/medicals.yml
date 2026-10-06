@@ -32,10 +32,13 @@ jobs:
         with:
           global-json-file: ./global.json
 
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+
       - name: Restore
         run: dotnet restore $env:PROJECT_PATH
 
-      - name: Publish
+      - name: Publish & Generate Installer
         run: |
           dotnet publish $env:PROJECT_PATH `
             -c Release `
@@ -46,16 +49,10 @@ jobs:
             -p:PublishReadyToRun=true `
             -p:PublishTrimmed=false `
             -p:Version=${{ steps.version.outputs.version }} `
+            -p:CreateInstaller=true `
             -o publish_output
 
-      - name: Rename EXE
-        shell: pwsh
-        run: |
-              $exe = Get-ChildItem publish_output -Filter *.exe
-              if ($exe.Count -eq 0) { throw "No EXE found after publish" }
-              Rename-Item $exe[0].FullName "$env:APP_NAME.exe"
-
-      - name: Zip
+      - name: Zip Published App
         shell: pwsh
         run: |
           Compress-Archive -Path publish_output\* -DestinationPath "$env:APP_NAME-win-x64.zip"
@@ -64,50 +61,6 @@ jobs:
         with:
           name: app-package
           path: ${{ env.APP_NAME }}-win-x64.zip
-
-
-  build-installer:
-    runs-on: windows-latest
-    needs: build-app
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: app-package
-
-      - name: Extract App
-        shell: pwsh
-        run: |
-          mkdir installer/app
-          Expand-Archive ${{ env.APP_NAME }}-win-x64.zip -DestinationPath installer/app -Force
-
-      - name: Download PostgreSQL
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path installer/postgresql
-          Invoke-WebRequest -Uri https://get.enterprisedb.com/postgresql/postgresql-16.2-1-windows-x64.exe -OutFile installer/postgresql/postgresql-installer.exe
-
-      - name: Validate Inputs
-        shell: pwsh
-        run: |
-          if (!(Test-Path "installer/setup.iss")) { throw "Missing setup.iss" }
-          if (!(Test-Path "installer/scripts/init-db.sql")) { throw "Missing SQL" }
-          if (!(Test-Path "installer/app")) { throw "Missing app" }
-          if (!(Test-Path "installer/postgresql/postgresql-installer.exe")) { throw "Missing postgres" }
-
-      - name: Install Inno Setup
-        run: choco install innosetup -y
-
-      - name: Build Installer
-        run: |
-          iscc installer/setup.iss /DMyAppVersion=${{ needs.build-app.outputs.version }}
-      
-      - name: Verify installer output
-        shell: pwsh
-        run: |
-          if (!(Test-Path "installer/output")) { throw "Installer output missing" }
 
       - uses: actions/upload-artifact@v4
         with:
@@ -119,7 +72,7 @@ jobs:
     runs-on: windows-latest
     permissions: 
       contents: write
-    needs: [build-app, build-installer]
+    needs: build-app
 
     steps:
       - uses: actions/download-artifact@v4

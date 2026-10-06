@@ -160,12 +160,6 @@ MCowBQYDK2VwAyEAPcHRBDO6QQSvi+PAtBMRU1txq0YzOLiJt5RNvJ4oc2o=
                 JsonSerializer.Deserialize<LicensePayload>(
                     json)!;
 
-            if (payload == null)
-            {
-                errorMessage = "Invalid license payload";
-                return false;
-            }
-
             payload.Expiry =
                 NormalizeIncoming(payload.Expiry);
 

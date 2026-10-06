@@ -54,7 +54,7 @@ public class CustomerService(ICustomerRepository repository) : ICustomerService
 
     public async Task<CustomerListDto> SearchCustomersByNameAsync(string searchTerm, int pageNumber = 1, int pageSize = 100)
     {
-        var (customers, totalCount) = await _repository.SearchByNameAsync(searchTerm ?? string.Empty, pageNumber, pageSize);
+        var (customers, totalCount) = await _repository.SearchByNameAsync(searchTerm, pageNumber, pageSize);
 
         return new CustomerListDto
         {
@@ -122,7 +122,8 @@ public class CustomerService(ICustomerRepository repository) : ICustomerService
         var outstanding = await _repository.GetWithOutstandingBalanceAsync();
         var totalLifetime = await _repository.GetTotalLifetimeValueAsync();
 
-        var totalOutstanding = outstanding.Sum(c => c.OutstandingAmount);
+        var enumerable = outstanding.ToList();
+        var totalOutstanding = enumerable.Sum(c => c.OutstandingAmount);
         var customersCount = counts[CustomerType.WalkIn] + counts[CustomerType.Registered] + counts[CustomerType.Corporate];
         var avgOutstanding = customersCount > 0 ? totalOutstanding / customersCount : 0;
 
@@ -136,7 +137,7 @@ public class CustomerService(ICustomerRepository repository) : ICustomerService
             TotalLifetimeValue = totalLifetime,
             TotalOutstandingBalance = totalOutstanding,
             AverageOutstandingPerCustomer = avgOutstanding,
-            CustomersWithBalance = outstanding.Count(),
+            CustomersWithBalance = enumerable.Count,
             LastUpdated = DateTime.UtcNow
         };
     }
@@ -178,7 +179,7 @@ public class CustomerService(ICustomerRepository repository) : ICustomerService
                 dto.BillingAddress.State,
                 dto.BillingAddress.PostalCode,
                 dto.BillingAddress.Street2,
-                dto.BillingAddress.Country ?? "India",
+                dto.BillingAddress.Country,
                 dto.BillingAddress.Latitude,
                 dto.BillingAddress.Longitude
             );
@@ -242,7 +243,7 @@ public class CustomerService(ICustomerRepository repository) : ICustomerService
                 dto.BillingAddress.State,
                 dto.BillingAddress.PostalCode,
                 dto.BillingAddress.Street2,
-                dto.BillingAddress.Country ?? "India"
+                dto.BillingAddress.Country
             );
         }
 
@@ -254,7 +255,7 @@ public class CustomerService(ICustomerRepository repository) : ICustomerService
                 dto.ShippingAddress.State,
                 dto.ShippingAddress.PostalCode,
                 dto.ShippingAddress.Street2,
-                dto.ShippingAddress.Country ?? "India"
+                dto.ShippingAddress.Country
             );
         }
 
@@ -321,7 +322,7 @@ public class CustomerService(ICustomerRepository repository) : ICustomerService
             await _repository.UpdateAsync(customer);
             return true;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             // Log the exception and return false to allow caller to handle it
             return false;
@@ -362,7 +363,7 @@ public class CustomerService(ICustomerRepository repository) : ICustomerService
             billingAddress.State,
             billingAddress.PostalCode,
             billingAddress.Street2,
-            billingAddress.Country ?? "India"
+            billingAddress.Country
         );
 
         var patient = PatientInfo.Create(
@@ -392,7 +393,7 @@ public class CustomerService(ICustomerRepository repository) : ICustomerService
             billingAddress.State,
             billingAddress.PostalCode,
             billingAddress.Street2,
-            billingAddress.Country ?? "India"
+            billingAddress.Country
         );
 
         customer.ConvertToCorporate(address, gstin);

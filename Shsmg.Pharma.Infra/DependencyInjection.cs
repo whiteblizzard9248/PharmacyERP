@@ -15,20 +15,28 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        // Register DbContext with PostgreSQL provider
-        services.AddDbContext<PharmacyDbContext>(options =>
-            options.UseNpgsql(Environment.GetEnvironmentVariable("PHARMA_DB") ?? configuration.GetConnectionString("DefaultConnection")).EnableSensitiveDataLogging(false));
-
+        services.AddScoped<IDatabasePathProvider, SqliteDatabasePathProvider>();
         services.AddScoped<RowVersionInterceptor>();
-        // Register IPharmacyDbContext for DI
+        services.AddDbContext<PharmacyDbContext>((provider, options) =>
+        {
+            var databasePathProvider =
+                provider.GetRequiredService<IDatabasePathProvider>();
+
+            var databasePath =
+                databasePathProvider.GetDatabasePath();
+
+            options.UseSqlite($"Data Source={databasePath}")
+                .EnableSensitiveDataLogging(false);
+        });
+
         services.AddScoped<IPharmacyDbContext>(provider => provider.GetRequiredService<PharmacyDbContext>());
         services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
 
         // Register Identity services
         services.AddIdentityCore<AppUser>()
-                .AddRoles<IdentityRole>()
-                .AddEntityFrameworkStores<PharmacyDbContext>()
-                .AddSignInManager();
+            .AddRoles<IdentityRole>()
+            .AddEntityFrameworkStores<PharmacyDbContext>()
+            .AddSignInManager();
 
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddScoped<IUserService, UserService>();

@@ -1,18 +1,16 @@
 using System.ComponentModel;
+namespace Shsmg.Pharma.WebUI;
 
 public class LicenseStatus : INotifyPropertyChanged
 {
-    private bool _isValid;
-    private string _message = string.Empty;
-
     public bool IsValid
     {
-        get => _isValid;
+        get;
         set
         {
-            if (_isValid != value)
+            if (field != value)
             {
-                _isValid = value;
+                field = value;
                 OnPropertyChanged(nameof(IsValid));
             }
         }
@@ -20,16 +18,16 @@ public class LicenseStatus : INotifyPropertyChanged
 
     public string Message
     {
-        get => _message;
+        get;
         set
         {
-            if (_message != value)
+            if (field != value)
             {
-                _message = value;
+                field = value;
                 OnPropertyChanged(nameof(Message));
             }
         }
-    }
+    } = string.Empty;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
